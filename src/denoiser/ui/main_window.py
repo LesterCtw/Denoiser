@@ -11,9 +11,11 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QListWidget,
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -21,7 +23,12 @@ from PySide6.QtWidgets import (
 from denoiser.engine import DenoiseMode, OnnxDenoiser
 from denoiser.image_io import ImageFormatError, image_requires_patch_based
 from denoiser.ui.compare_view import CompareView
-from denoiser.workflow import RestoreEngine, restore_single_image
+from denoiser.workflow import (
+    BatchFileStatus,
+    RestoreEngine,
+    restore_batch_folder,
+    restore_single_image,
+)
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +36,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._engine = engine or OnnxDenoiser()
         self._single_image_path: Path | None = None
+        self._batch_folder_path: Path | None = None
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
 
         self.setWindowTitle("Denoiser")
@@ -63,6 +71,27 @@ class MainWindow(QMainWindow):
     def status_text(self) -> str:
         return self._status.text()
 
+    def show_batch_mode(self) -> None:
+        self._batch_button.click()
+
+    def show_single_mode(self) -> None:
+        self._single_button.click()
+
+    def set_batch_folder_path(self, path: Path) -> None:
+        self._batch_folder_path = Path(path)
+        self._batch_list.clear()
+        self._set_batch_progress("0 of 0 files")
+        self._set_status(f"Batch folder: {self._batch_folder_path}")
+
+    def batch_progress_text(self) -> str:
+        return self._batch_progress.text()
+
+    def batch_status_texts(self) -> list[str]:
+        return [
+            self._batch_list.item(index).text()
+            for index in range(self._batch_list.count())
+        ]
+
     def _build_sidebar(self) -> QWidget:
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
@@ -77,24 +106,44 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
 
         mode_row = QHBoxLayout()
-        single_button = QPushButton("Single")
-        single_button.setCheckable(True)
-        single_button.setChecked(True)
-        batch_button = QPushButton("Batch")
-        batch_button.setCheckable(True)
+        self._single_button = QPushButton("Single")
+        self._single_button.setCheckable(True)
+        self._single_button.setChecked(True)
+        self._batch_button = QPushButton("Batch")
+        self._batch_button.setCheckable(True)
 
         workflow_group = QButtonGroup(sidebar)
         workflow_group.setExclusive(True)
-        workflow_group.addButton(single_button)
-        workflow_group.addButton(batch_button)
+        workflow_group.addButton(self._single_button)
+        workflow_group.addButton(self._batch_button)
 
-        mode_row.addWidget(single_button)
-        mode_row.addWidget(batch_button)
+        self._single_button.clicked.connect(self._show_single_controls)
+        self._batch_button.clicked.connect(self._show_batch_controls)
+
+        mode_row.addWidget(self._single_button)
+        mode_row.addWidget(self._batch_button)
         layout.addLayout(mode_row)
 
+        self._single_controls = QWidget()
+        single_controls_layout = QVBoxLayout(self._single_controls)
+        single_controls_layout.setContentsMargins(0, 0, 0, 0)
+        single_controls_layout.setSpacing(12)
         open_image_button = QPushButton("Open Image")
         open_image_button.clicked.connect(self._open_single_image)
-        layout.addWidget(open_image_button)
+        single_controls_layout.addWidget(open_image_button)
+
+        self._batch_controls = QWidget()
+        batch_controls_layout = QVBoxLayout(self._batch_controls)
+        batch_controls_layout.setContentsMargins(0, 0, 0, 0)
+        batch_controls_layout.setSpacing(12)
+        add_folder_button = QPushButton("Add Folder")
+        add_folder_button.clicked.connect(self._open_batch_folder)
+        batch_controls_layout.addWidget(add_folder_button)
+
+        self._workflow_controls = QStackedWidget()
+        self._workflow_controls.addWidget(self._single_controls)
+        self._workflow_controls.addWidget(self._batch_controls)
+        layout.addWidget(self._workflow_controls)
 
         model_label = QLabel("Mode")
         model_label.setObjectName("SectionLabel")
@@ -116,6 +165,12 @@ class MainWindow(QMainWindow):
         self.restore_button.clicked.connect(self._restore_selected_image)
         layout.addWidget(self.restore_button)
 
+        self.start_batch_button = QPushButton("Start Batch")
+        self.start_batch_button.setObjectName("PrimaryButton")
+        self.start_batch_button.clicked.connect(self._restore_batch_folder)
+        self.start_batch_button.hide()
+        layout.addWidget(self.start_batch_button)
+
         layout.addStretch(1)
 
         self._status = QLabel("Ready")
@@ -134,9 +189,29 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(0)
 
+        self._preview_stack = QStackedWidget()
+
         self._compare_view = CompareView()
-        self._compare_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        layout.addWidget(self._compare_view, 1, Qt.AlignmentFlag.AlignCenter)
+        self._compare_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        self._preview_stack.addWidget(self._compare_view)
+
+        self._batch_panel = QFrame()
+        self._batch_panel.setObjectName("BatchPanel")
+        batch_layout = QVBoxLayout(self._batch_panel)
+        batch_layout.setContentsMargins(0, 0, 0, 0)
+        batch_layout.setSpacing(12)
+        self._batch_progress = QLabel("0 of 0 files")
+        self._batch_progress.setObjectName("BatchProgress")
+        batch_layout.addWidget(self._batch_progress)
+        self._batch_list = QListWidget()
+        self._batch_list.setObjectName("BatchList")
+        batch_layout.addWidget(self._batch_list, 1)
+        self._preview_stack.addWidget(self._batch_panel)
+
+        layout.addWidget(self._preview_stack, 1)
 
         return preview
 
@@ -149,6 +224,26 @@ class MainWindow(QMainWindow):
         )
         if filename:
             self.set_single_image_path(Path(filename))
+
+    def _open_batch_folder(self) -> None:
+        dirname = QFileDialog.getExistingDirectory(self, "Add Folder", "")
+        if dirname:
+            self.set_batch_folder_path(Path(dirname))
+
+    def _show_single_controls(self) -> None:
+        self._workflow_controls.setCurrentWidget(self._single_controls)
+        self._preview_stack.setCurrentWidget(self._compare_view)
+        self.restore_button.show()
+        self.start_batch_button.hide()
+        self._set_status("Ready")
+
+    def _show_batch_controls(self) -> None:
+        self._workflow_controls.setCurrentWidget(self._batch_controls)
+        self._preview_stack.setCurrentWidget(self._batch_panel)
+        self._compare_view.clear("Batch mode")
+        self.restore_button.hide()
+        self.start_batch_button.show()
+        self._set_status("Select a folder for Batch mode.")
 
     def _selected_mode(self) -> DenoiseMode:
         for mode, button in self._mode_buttons.items():
@@ -173,6 +268,44 @@ class MainWindow(QMainWindow):
             self._compare_view.set_images(result.raw_pixels, result.restored_pixels)
         finally:
             self.restore_button.setEnabled(True)
+
+    def _restore_batch_folder(self) -> None:
+        if self._batch_folder_path is None:
+            self._set_status("Add a folder before starting Batch.")
+            return
+
+        mode = self._selected_mode()
+        self.start_batch_button.setEnabled(False)
+        self._batch_list.clear()
+        self._set_status("Batch restoring...")
+        try:
+            result = restore_batch_folder(self._batch_folder_path, mode, self._engine)
+        except Exception as exc:
+            self._set_status(f"Batch failed: {exc}")
+        else:
+            self._set_batch_progress(f"{result.total_count} of {result.total_count} files")
+            for file_result in result.file_results:
+                status = (
+                    "Restored"
+                    if file_result.status is BatchFileStatus.RESTORED
+                    else "Skipped"
+                )
+                detail = (
+                    str(file_result.output_path)
+                    if file_result.output_path is not None
+                    else file_result.message
+                )
+                self._batch_list.addItem(
+                    f"{file_result.source_path.name} - {status}: {detail}"
+                )
+            self._set_status(
+                f"Batch complete: {result.restored_count} restored, {result.skipped_count} skipped."
+            )
+        finally:
+            self.start_batch_button.setEnabled(True)
+
+    def _set_batch_progress(self, message: str) -> None:
+        self._batch_progress.setText(message)
 
     def _set_status(self, message: str) -> None:
         self._status.setText(message)
@@ -250,5 +383,23 @@ def _stylesheet() -> str:
         border-radius: 8px;
         background: #fafafc;
         color: #7a7a7a;
+    }
+
+    #BatchPanel {
+        background: #ffffff;
+    }
+
+    #BatchProgress {
+        color: #1d1d1f;
+        font-size: 17px;
+        font-weight: 600;
+    }
+
+    #BatchList {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: #fafafc;
+        color: #1d1d1f;
+        padding: 8px;
     }
     """

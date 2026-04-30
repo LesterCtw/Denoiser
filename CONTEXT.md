@@ -10,7 +10,8 @@ The repo now has a Python project skeleton, bundled ONNX models, third-party
 license notices, a tested image I/O boundary for first-release output naming
 and dtype/range preservation rules, a minimal ONNX inference wrapper with
 whole-image and patch-based restore paths, a working Single-image restore flow,
-and a Single mode before/after compare view.
+the first Batch folder restore flow, and a Single mode before/after compare
+view.
 
 ## Glossary
 
