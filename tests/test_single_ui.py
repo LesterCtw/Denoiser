@@ -50,6 +50,17 @@ def test_single_ui_shows_overwrite_message_before_restore(tmp_path: Path) -> Non
     assert "Existing outputs will be overwritten." in window.status_text()
 
 
+def test_single_ui_warns_when_selected_image_is_large(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    source = tmp_path / "large.tif"
+    tifffile.imwrite(source, np.zeros((1537, 1), dtype=np.uint8))
+
+    window = MainWindow(engine=object())
+    window.set_single_image_path(source)
+
+    assert "Large images may take several minutes." in window.status_text()
+
+
 def test_single_ui_rejects_unsupported_input_without_running_engine(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     source = tmp_path / "wafer.bmp"

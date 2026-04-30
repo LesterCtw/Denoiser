@@ -24,7 +24,7 @@ Implemented:
 - PySide6 application entry point and placeholder main window.
 - Four required ONNX model files committed under `models/`.
 - Third-party notices and upstream `tk_r_em` GPL license copy.
-- Minimal CPU ONNX inference wrapper for whole-image inference.
+- Minimal CPU ONNX inference wrapper for whole-image and patch-based inference.
 - Single-image restore workflow for small images using the bundled ONNX models.
 - Single mode UI wiring for image selection, mode buttons, Restore, automatic
   saving, and success/failure status.
@@ -34,16 +34,19 @@ Implemented:
 - Output path rules using `denoised_MODE` folders.
 - Output dtype/range preparation that clips to the original image min/max and
   avoids automatic contrast stretching.
+- Large-image patch-based restore path using `patch_size=512`, `stride=256`,
+  and `batch_size=2` by default, with a Single mode warning that processing may
+  take several minutes.
 - Focused tests for model mapping, missing model handling, whole-image
-  inference, Single restore workflow, Single UI restore behavior, output naming,
-  before/after compare view interaction, denoised-folder rejection,
-  unsupported-input rejection, multi-page TIFF rejection, JPEG-to-TIFF output,
-  PNG/TIFF output preservation, RGB/RGBA-to-grayscale conversion, overwrite
-  behavior, and uint16 TIFF clipping.
+  inference, patch-based inference, Single restore workflow, Single UI restore
+  behavior, output naming, before/after compare view interaction,
+  denoised-folder rejection, unsupported-input rejection, multi-page TIFF
+  rejection, JPEG-to-TIFF output, PNG/TIFF output preservation,
+  RGB/RGBA-to-grayscale conversion, overwrite behavior, and uint16 TIFF
+  clipping.
 
 Not implemented yet:
 
-- Patch-based inference for large images.
 - Full Batch UI behavior.
 - Batch progress list and cancellation.
 - TIFF metadata preservation beyond safe basic image writing.

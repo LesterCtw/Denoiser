@@ -60,15 +60,17 @@ def should_use_patch_based(height: int, width: int, settings: InferenceSettings)
 
 
 class OnnxDenoiser:
-    """Minimal whole-image ONNX denoiser for the first Single workflow."""
+    """Minimal ONNX denoiser for Single workflow restore paths."""
 
     def __init__(
         self,
         models_dir: Path = DEFAULT_MODELS_DIR,
         session_factory: type[DenoiseSession] | None = None,
+        settings: InferenceSettings | None = None,
     ) -> None:
         self._models_dir = Path(models_dir)
         self._session_factory = session_factory or _OrtSession
+        self._settings = settings or InferenceSettings()
         self._sessions: dict[DenoiseMode, DenoiseSession] = {}
 
     def restore(self, pixels: np.ndarray, mode: DenoiseMode) -> np.ndarray:
@@ -76,6 +78,12 @@ class OnnxDenoiser:
         if source.ndim != 2:
             raise DenoiseEngineError(f"Expected a 2D grayscale image, got shape {source.shape}.")
 
+        if should_use_patch_based(source.shape[0], source.shape[1], self._settings):
+            return self._restore_patch_based(source, mode)
+
+        return self._restore_whole_image(source, mode)
+
+    def _restore_whole_image(self, source: np.ndarray, mode: DenoiseMode) -> np.ndarray:
         input_tensor = _pad_2d_to_even(source)[None, :, :, None]
         output_tensor = self._session_for(mode).run(input_tensor)
         output = np.asarray(output_tensor, dtype=np.float32)
@@ -86,6 +94,52 @@ class OnnxDenoiser:
             )
 
         return output[0, : source.shape[0], : source.shape[1], 0]
+
+    def _restore_patch_based(self, source: np.ndarray, mode: DenoiseMode) -> np.ndarray:
+        settings = self._settings
+        patch_size = settings.patch_size
+        stride = settings.stride
+        batch_size = settings.batch_size
+        if patch_size <= 0 or stride <= 0 or batch_size <= 0:
+            raise DenoiseEngineError("Patch settings must be positive integers.")
+
+        height, width = source.shape
+        padded_height = max(height, patch_size)
+        padded_width = max(width, patch_size)
+        padded = np.full((padded_height, padded_width), float(source.mean()), dtype=np.float32)
+        padded[:height, :width] = source
+
+        output_sum = np.zeros_like(padded, dtype=np.float32)
+        output_count = np.zeros_like(padded, dtype=np.float32)
+        starts = [
+            (y, x)
+            for y in _patch_starts(padded_height, patch_size, stride)
+            for x in _patch_starts(padded_width, patch_size, stride)
+        ]
+        session = self._session_for(mode)
+
+        for batch_start in range(0, len(starts), batch_size):
+            batch_positions = starts[batch_start : batch_start + batch_size]
+            batch = np.stack(
+                [
+                    padded[y : y + patch_size, x : x + patch_size]
+                    for y, x in batch_positions
+                ],
+                axis=0,
+            )[..., None]
+            output_tensor = session.run(batch)
+            output = np.asarray(output_tensor, dtype=np.float32)
+            if output.shape != batch.shape:
+                raise DenoiseEngineError(
+                    f"Model output shape {output.shape} does not match patch batch shape {batch.shape}."
+                )
+
+            for patch, (y, x) in zip(output[..., 0], batch_positions, strict=True):
+                output_sum[y : y + patch_size, x : x + patch_size] += patch
+                output_count[y : y + patch_size, x : x + patch_size] += 1
+
+        restored = output_sum / output_count
+        return restored[:height, :width]
 
     def _session_for(self, mode: DenoiseMode) -> DenoiseSession:
         if mode not in self._sessions:
@@ -122,3 +176,14 @@ def _pad_2d_to_even(source: np.ndarray) -> np.ndarray:
         mode="constant",
         constant_values=float(source.mean()),
     )
+
+
+def _patch_starts(length: int, patch_size: int, stride: int) -> list[int]:
+    if length <= patch_size:
+        return [0]
+
+    starts = list(range(0, length - patch_size + 1, stride))
+    final_start = length - patch_size
+    if starts[-1] != final_start:
+        starts.append(final_start)
+    return starts

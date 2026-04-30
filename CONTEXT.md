@@ -8,9 +8,9 @@ using `tk_r_em` ONNX models.
 
 The repo now has a Python project skeleton, bundled ONNX models, third-party
 license notices, a tested image I/O boundary for first-release output naming
-and dtype/range preservation rules, a minimal whole-image ONNX inference
-wrapper, a working Single-image restore tracer bullet for small images, and a
-Single mode before/after compare view.
+and dtype/range preservation rules, a minimal ONNX inference wrapper with
+whole-image and patch-based restore paths, a working Single-image restore flow,
+and a Single mode before/after compare view.
 
 ## Glossary
 

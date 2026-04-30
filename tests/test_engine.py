@@ -31,6 +31,20 @@ def test_small_images_use_whole_image_inference() -> None:
     assert not should_use_patch_based(height=1536, width=1200, settings=settings)
 
 
+def test_large_images_use_patch_based_inference() -> None:
+    settings = InferenceSettings(whole_image_threshold_px=1536)
+
+    assert should_use_patch_based(height=1537, width=1200, settings=settings)
+
+
+def test_patch_inference_settings_defaults_match_mvs() -> None:
+    settings = InferenceSettings()
+
+    assert settings.patch_size == 512
+    assert settings.stride == 256
+    assert settings.batch_size == 2
+
+
 def test_onnx_denoiser_restores_2d_pixels_with_selected_mode_model(tmp_path) -> None:
     for tag in ("sfr_hrstem", "sfr_lrstem", "sfr_hrsem", "sfr_lrsem"):
         (tmp_path / f"{tag}.onnx").write_bytes(b"model")
@@ -86,3 +100,39 @@ def test_onnx_denoiser_pads_odd_sized_images_and_crops_output(tmp_path) -> None:
 
     assert restored.shape == pixels.shape
     np.testing.assert_array_equal(restored, np.ones((3, 5), dtype=np.float32))
+
+
+def test_onnx_denoiser_uses_deterministic_patch_based_restore_path(tmp_path) -> None:
+    for tag in ("sfr_hrstem", "sfr_lrstem", "sfr_hrsem", "sfr_lrsem"):
+        (tmp_path / f"{tag}.onnx").write_bytes(b"model")
+
+    class PatchSession:
+        calls = []
+
+        def __init__(self, model_path):
+            pass
+
+        def run(self, input_tensor):
+            self.calls.append(input_tensor.copy())
+            assert input_tensor.shape[0] <= 2
+            assert input_tensor.shape[1:] == (2, 2, 1)
+            return input_tensor + 10
+
+    settings = InferenceSettings(
+        whole_image_threshold_px=2,
+        patch_size=2,
+        stride=1,
+        batch_size=2,
+    )
+    denoiser = OnnxDenoiser(
+        models_dir=tmp_path,
+        session_factory=PatchSession,
+        settings=settings,
+    )
+    pixels = np.arange(9, dtype=np.float32).reshape(3, 3)
+
+    restored = denoiser.restore(pixels, DenoiseMode.HRSTEM)
+
+    assert restored.shape == pixels.shape
+    assert len(PatchSession.calls) == 2
+    np.testing.assert_array_equal(restored, pixels + 10)

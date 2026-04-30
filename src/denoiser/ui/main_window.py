@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from denoiser.engine import DenoiseMode, OnnxDenoiser
+from denoiser.image_io import ImageFormatError, image_requires_patch_based
 from denoiser.ui.compare_view import CompareView
 from denoiser.workflow import RestoreEngine, restore_single_image
 
@@ -48,9 +49,13 @@ class MainWindow(QMainWindow):
     def set_single_image_path(self, path: Path) -> None:
         self._single_image_path = Path(path)
         self._compare_view.clear(f"Selected image: {self._single_image_path}")
-        self._set_status(
-            f"Selected: {self._single_image_path.name}. Existing outputs will be overwritten."
-        )
+        message = f"Selected: {self._single_image_path.name}. Existing outputs will be overwritten."
+        try:
+            if image_requires_patch_based(self._single_image_path):
+                message += " Large images may take several minutes."
+        except ImageFormatError:
+            pass
+        self._set_status(message)
 
     def mode_button(self, mode: DenoiseMode) -> QPushButton:
         return self._mode_buttons[mode]
