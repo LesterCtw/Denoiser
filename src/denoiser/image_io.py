@@ -6,6 +6,7 @@ normalization to output files.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -14,6 +15,7 @@ from typing import Any
 import numpy as np
 import tifffile
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 from denoiser.engine import (
     DenoiseMode,
@@ -31,6 +33,25 @@ SUPPORTED_INPUT_EXTENSIONS = {
     ".jpeg",
     ".dm3",
     ".dm4",
+}
+
+SAFE_TIFF_TAGS = {
+    "ImageDescription",
+    "Software",
+    "DateTime",
+    "XResolution",
+    "YResolution",
+    "ResolutionUnit",
+}
+
+TIFF_METADATA_TAGS_TO_NOTE = {
+    "Artist",
+    "Copyright",
+    "DocumentName",
+    "HostComputer",
+    "Make",
+    "Model",
+    "PageName",
 }
 
 
@@ -141,9 +162,14 @@ def save_restored_image(image: ImageData, restored_pixels: np.ndarray, mode: Den
 
     output = prepare_output_pixels(image, restored_pixels)
     if output_path.suffix.lower() in {".tif", ".tiff"}:
-        tifffile.imwrite(output_path, output, photometric="minisblack")
+        tifffile.imwrite(
+            output_path,
+            output,
+            photometric="minisblack",
+            **_tiff_write_options(image),
+        )
     elif output_path.suffix.lower() == ".png":
-        Image.fromarray(output).save(output_path)
+        Image.fromarray(output).save(output_path, **_png_write_options(image))
     else:
         raise ImageFormatError(f"Unsupported output format: {output_path.suffix}")
 
@@ -172,8 +198,9 @@ def prepare_output_pixels(image: ImageData, restored_pixels: np.ndarray) -> np.n
 
 def _load_pillow_image(path: Path) -> ImageData:
     with Image.open(path) as img:
+        metadata = _safe_png_metadata(img.info) if path.suffix.lower() == ".png" else {}
         array = np.asarray(img)
-    return _image_data_from_array(path, array, SourceKind.STANDARD)
+    return _image_data_from_array(path, array, SourceKind.STANDARD, metadata=metadata)
 
 
 def _load_tiff_image(path: Path) -> ImageData:
@@ -188,8 +215,9 @@ def _load_tiff_image(path: Path) -> ImageData:
                 f"Stack-like TIFF data is not supported: {series.shape}. "
                 "Use a single 2D image."
             )
+        metadata = _safe_tiff_metadata(tif.pages[0].tags)
         array = series.asarray()
-    return _image_data_from_array(path, array, SourceKind.STANDARD)
+    return _image_data_from_array(path, array, SourceKind.STANDARD, metadata=metadata)
 
 
 def _load_dm_image(path: Path) -> ImageData:
@@ -206,6 +234,108 @@ def _load_dm_image(path: Path) -> ImageData:
         "axes": signal.get("axes", []),
     }
     return _image_data_from_array(path, signal["data"], SourceKind.DM, metadata=metadata)
+
+
+def _safe_tiff_metadata(tags: tifffile.TiffTags) -> dict[str, Any]:
+    safe_metadata: dict[str, Any] = {}
+    notes: list[str] = []
+
+    description = tags.get("ImageDescription")
+    if description is not None and isinstance(description.value, str):
+        if _is_safe_tiff_description(description.value):
+            safe_metadata["description"] = description.value
+        else:
+            notes.append("Skipped unsafe TIFF metadata tag: ImageDescription")
+
+    for tag_name, metadata_key in (
+        ("Software", "software"),
+        ("DateTime", "datetime"),
+    ):
+        tag = tags.get(tag_name)
+        if tag is not None and isinstance(tag.value, str):
+            safe_metadata[metadata_key] = tag.value
+
+    resolution_unit = tags.get("ResolutionUnit")
+    if resolution_unit is not None and isinstance(resolution_unit.value, int):
+        safe_metadata["resolutionunit"] = resolution_unit.value
+
+    x_resolution = tags.get("XResolution")
+    y_resolution = tags.get("YResolution")
+    if x_resolution is not None and y_resolution is not None:
+        safe_metadata["resolution"] = (x_resolution.value, y_resolution.value)
+
+    for tag in tags.values():
+        if tag.name in TIFF_METADATA_TAGS_TO_NOTE and tag.name not in SAFE_TIFF_TAGS:
+            notes.append(f"Skipped unsupported TIFF metadata tag: {tag.name}")
+
+    metadata: dict[str, Any] = {"tiff": safe_metadata}
+    if notes:
+        metadata["metadata_notes"] = notes
+    return metadata
+
+
+def _is_safe_tiff_description(value: str) -> bool:
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError:
+        return True
+    return not (isinstance(decoded, dict) and "shape" in decoded)
+
+
+def _tiff_write_options(image: ImageData) -> dict[str, Any]:
+    options: dict[str, Any] = {"metadata": None}
+
+    if image.source_kind is not SourceKind.STANDARD:
+        return options
+
+    tiff_metadata = image.metadata.get("tiff", {})
+    if not isinstance(tiff_metadata, dict):
+        return options
+
+    for key in ("description", "software", "datetime", "resolution", "resolutionunit"):
+        if key in tiff_metadata:
+            options[key] = tiff_metadata[key]
+
+    return options
+
+
+def _safe_png_metadata(info: dict[str, Any]) -> dict[str, Any]:
+    text: dict[str, str] = {}
+    notes: list[str] = []
+
+    for key, value in info.items():
+        if (
+            isinstance(key, str)
+            and 0 < len(key) <= 79
+            and isinstance(value, str)
+            and len(value) <= 65535
+        ):
+            text[key] = value
+        else:
+            notes.append(f"Skipped unsafe PNG metadata key: {key}")
+
+    metadata: dict[str, Any] = {}
+    if text:
+        metadata["png_text"] = text
+    if notes:
+        metadata["metadata_notes"] = notes
+    return metadata
+
+
+def _png_write_options(image: ImageData) -> dict[str, Any]:
+    if image.source_kind is not SourceKind.STANDARD:
+        return {}
+
+    text = image.metadata.get("png_text", {})
+    if not isinstance(text, dict) or not text:
+        return {}
+
+    pnginfo = PngInfo()
+    for key, value in text.items():
+        if isinstance(key, str) and isinstance(value, str):
+            pnginfo.add_text(key, value)
+
+    return {"pnginfo": pnginfo}
 
 
 def _image_data_from_array(

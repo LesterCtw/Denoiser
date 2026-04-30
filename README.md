@@ -1,110 +1,107 @@
 # Denoiser
 
-Project status: product scope defined for the first Minimum Viable Solution
-(MVS). This README is the source of truth for current project status.
+專案狀態：第一版 Minimum Viable Solution（MVS）的產品範圍已定義。
+這份 README 是目前專案狀態的 source of truth。
 
-Denoiser is a simple Windows desktop tool for FA engineers to restore
-grayscale SEM/STEM images using the `tk_r_em` ONNX models as the denoising
-engine.
+Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
+`tk_r_em` ONNX models 還原 grayscale SEM/STEM images。
 
-## Current setup
+## 目前設定
 
-- GitHub repo: `LesterCtw/Denoiser`
-- Issue tracker: GitHub Issues
-- Agent instructions: `AGENTS.md`
-- Domain context: `CONTEXT.md`
-- Architecture decisions: `docs/adr/`
-- Pre-commit hooks: Husky runs lint-staged Prettier and `uv run pytest`.
+- GitHub repo：`LesterCtw/Denoiser`
+- Issue tracker：GitHub Issues
+- Agent instructions：`AGENTS.md`
+- Domain context：`CONTEXT.md`
+- Architecture decisions：`docs/adr/`
+- Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
-## Current implementation status
+## 目前實作狀態
 
-Implemented:
+已實作：
 
-- Project skeleton with `src/denoiser` package layout.
-- PySide6 application entry point and placeholder main window.
-- Four required ONNX model files committed under `models/`.
-- Third-party notices and upstream `tk_r_em` GPL license copy.
-- Minimal CPU ONNX inference wrapper for whole-image and patch-based inference.
-- Single-image restore workflow for small images using the bundled ONNX models.
-- Single mode UI wiring for image selection, mode buttons, Restore, automatic
-  saving, and success/failure status.
-- Batch mode UI wiring for folder selection, shared mode buttons, Start Batch,
-  progress, and a scrollable per-file status list.
-- Batch cancellation between files, per-file failure isolation, and final
-  restored/failed/skipped/cancelled summary counts.
-- Before/after compare view for Single mode with fit-to-window drawing, a 50%
-  starting divider, drag interaction, and click-to-jump interaction.
-- Image I/O boundary for the first supported formats.
-- Output path rules using `denoised_MODE` folders.
-- Output dtype/range preparation that clips to the original image min/max and
-  avoids automatic contrast stretching.
-- Large-image patch-based restore path using `patch_size=512`, `stride=256`,
-  and `batch_size=2` by default, with a Single mode warning that processing may
-  take several minutes.
-- Focused tests for model mapping, missing model handling, whole-image
-  inference, patch-based inference, Single restore workflow, Batch restore
-  workflow, Single UI restore behavior, Batch UI progress/status behavior,
-  output naming, before/after compare view interaction, denoised-folder
-  rejection, unsupported-input rejection, multi-page TIFF rejection,
-  batch cancellation, batch failure isolation, JPEG-to-TIFF output,
-  PNG/TIFF output preservation,
-  RGB/RGBA-to-grayscale conversion, overwrite behavior, and uint16 TIFF
-  clipping.
+- `src/denoiser` package layout 的專案骨架。
+- PySide6 application entry point 和基本 main window。
+- 四個必要 ONNX model files 已放在 `models/`。
+- Third-party notices 和 upstream `tk_r_em` GPL license copy。
+- 支援 whole-image 和 patch-based inference 的最小 CPU ONNX inference wrapper。
+- 使用 bundled ONNX models 的 Single-image restore workflow。
+- Single mode UI：image selection、mode buttons、Restore、自動儲存、成功/失敗狀態。
+- Batch mode UI：folder selection、共用 mode buttons、Start Batch、progress、
+  可捲動的 per-file status list。
+- Batch cancellation between files、per-file failure isolation，以及 final
+  restored/failed/skipped/cancelled summary counts。
+- Single mode before/after compare view：fit-to-window drawing、50% 初始 divider、
+  drag interaction、click-to-jump interaction。
+- 第一版支援格式的 image I/O boundary。
+- 使用 `denoised_MODE` folders 的 output path rules。
+- Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
+  stretching。
+- Large-image patch-based restore path，預設 `patch_size=512`、`stride=256`、
+  `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
+- Conservative metadata preservation：TIFF 保留 safe standard metadata，PNG 保留
+  safe text metadata；unsupported metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
+- Focused tests：model mapping、missing model handling、whole-image inference、
+  patch-based inference、Single restore workflow、Batch restore workflow、
+  Single UI restore behavior、Batch UI progress/status behavior、output naming、
+  before/after compare view interaction、denoised-folder rejection、
+  unsupported-input rejection、multi-page TIFF rejection、batch cancellation、
+  batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
+  RGB/RGBA-to-grayscale conversion、overwrite behavior、uint16 TIFF clipping、
+  conservative TIFF/PNG metadata preservation。
 
-Not implemented yet:
+尚未實作：
 
-- TIFF metadata preservation beyond safe basic image writing.
-- Windows release build verification.
+- Windows release build verification。
 
-## First MVS scope
+## 第一版 MVS 範圍
 
-- Desktop frontend: PySide6
-- Target platform: Windows 10/11 laptop PCs
-- Runtime: CPU only
-- Distribution: folder-style Windows release with `Denoiser.exe`
-- Offline use: required; model files are committed to this repo and bundled with
-  the release
-- Product name / brand: `Denoiser`
-- UI language: English
-- Development dependency manager: `uv`
-- Windows build/deployment dependency install path: `pip install`
-- Release build platform: Windows builds the Windows release
+- Desktop frontend：PySide6
+- Target platform：Windows 10/11 laptop PCs
+- Runtime：CPU only
+- Distribution：folder-style Windows release，包含 `Denoiser.exe`
+- Offline use：必要；model files 會 commit 到此 repo 並一起打包進 release
+- Product name / brand：`Denoiser`
+- UI language：English
+- Development dependency manager：`uv`
+- Windows build/deployment dependency install path：`pip install`
+- Release build platform：在 Windows 上建立 Windows release
 
 ## Engine integration
 
-Denoiser will use a minimal local engine wrapper derived from the required
-`tk_r_em` inference behavior, rather than depending on the full upstream package
-at runtime.
+Denoiser 會使用最小本地 engine wrapper，實作必要的 `tk_r_em` inference behavior，
+而不是在 runtime 依賴完整 upstream package。
 
-The first release includes only the four required ONNX models:
+第一版只包含四個必要 ONNX models：
 
 - `sfr_hrstem`
 - `sfr_lrstem`
 - `sfr_hrsem`
 - `sfr_lrsem`
 
-The full `tk_r_em` Streamlit app, tutorials, sample datasets, and TEM models are
-not part of the runtime app.
+完整的 `tk_r_em` Streamlit app、tutorials、sample datasets、TEM models 不屬於
+runtime app。
 
-Because `tk_r_em` is GPL-3.0-only, Denoiser must keep the relevant license and
-attribution notices with the source and release package.
+因為 `tk_r_em` 是 GPL-3.0-only，Denoiser 必須在 source 和 release package 中保留
+相關 license 與 attribution notices。
 
-The four required ONNX model files are tracked in this repository so that a
-developer can clone the repo and build the release without a separate model
-download step.
+四個必要 ONNX model files 會追蹤在此 repository，因此 developer clone repo 後可以
+不另外下載 model 也能建立 release。
 
 ## Packaging workflow
 
-The intended build flow is:
+預期 build flow：
 
-1. Developer clones/downloads this repository from GitHub on a Windows machine.
-2. Developer installs dependencies with standard `pip install` commands.
-3. Developer runs the Windows build script.
-4. The build script creates a folder-style release containing `Denoiser.exe`,
-   dependencies, licenses, and bundled model files.
-5. FA engineers receive only the release folder and run `Denoiser.exe`.
+1. Developer 在 Windows machine clone/download 此 repository。
+2. Developer 使用標準 `pip install` commands 安裝 dependencies。
+3. Developer 執行 Windows build script。
+4. Build script 產生 folder-style release，內含 `Denoiser.exe`、dependencies、
+   licenses、bundled model files。
+5. FA engineers 只收到 release folder，並執行 `Denoiser.exe`。
 
-End users do not need Python, `uv`, or `pip`.
+End users 不需要 Python、`uv` 或 `pip`。
+
+Windows release 的人工驗證步驟記錄在
+`docs/windows-release-verification.md`。
 
 ## Repository layout
 
@@ -125,6 +122,8 @@ Denoiser/
     sfr_lrstem.onnx
   scripts/
     build_windows.ps1
+  docs/
+    windows-release-verification.md
   src/
     denoiser/
       __init__.py
@@ -149,8 +148,7 @@ Denoiser/
 
 ## Denoising modes
 
-Only SEM and STEM modes are included in the first release. TEM is intentionally
-excluded.
+第一版只包含 SEM 和 STEM modes。TEM 會刻意排除。
 
 | UI label | tk_r_em model tag | Output folder     |
 | -------- | ----------------- | ----------------- |
@@ -159,46 +157,45 @@ excluded.
 | `HRSEM`  | `sfr_hrsem`       | `denoised_HRSEM`  |
 | `LRSEM`  | `sfr_lrsem`       | `denoised_LRSEM`  |
 
-The UI shows these four modes as buttons, not as a dropdown.
+UI 會把這四個 modes 顯示為 buttons，而不是 dropdown。
 
 ## Workflow
 
-The app has two modes, switched by buttons:
+App 有兩個 modes，使用 buttons 切換：
 
 - `Single`
-  - Open one image.
-  - Select one denoising mode.
-  - Click `Restore`.
-  - The result is saved automatically.
-  - The right side shows a fit-to-window before/after slider.
+  - 開啟一張 image。
+  - 選擇一個 denoising mode。
+  - 點擊 `Restore`。
+  - 結果會自動儲存。
+  - 右側顯示 fit-to-window before/after slider。
 - `Batch`
-  - Select one folder with `Add Folder`.
-  - Only files in the selected folder are scanned; subfolders are not scanned.
-  - Select one denoising mode.
-  - Click `Start Batch`.
-  - The right side shows progress and a scrollable per-file status list.
+  - 使用 `Add Folder` 選擇一個 folder。
+  - 只掃描 selected folder 內的 files；不掃描 subfolders。
+  - 選擇一個 denoising mode。
+  - 點擊 `Start Batch`。
+  - 右側顯示 progress 和可捲動的 per-file status list。
 
-Layout:
+Layout：
 
-- Left side: controls, file/folder selection, mode buttons, progress/status.
-- Right side:
-  - Single mode: raw image before processing, then before/after comparison.
-  - Batch mode: progress/status only; no image preview.
+- 左側：controls、file/folder selection、mode buttons、progress/status。
+- 右側：
+  - Single mode：處理前的 raw image，接著顯示 before/after comparison。
+  - Batch mode：只顯示 progress/status；不顯示 image preview。
 
 ## Image comparison behavior
 
-- The preview always fits the full image into the available right-side area.
-- No zoom, pan, crop, rotate, brightness, contrast, histogram, or image-editing
-  tools are included in the first release.
-- The before/after slider starts at 50%.
-- Dragging the divider moves the comparison position.
-- Clicking anywhere on the image jumps the slider to that position.
-- Preview display normalization is allowed only for screen display. It must not
-  affect saved output files.
+- Preview 一律把整張 image fit 到可用的右側區域。
+- 第一版不包含 zoom、pan、crop、rotate、brightness、contrast、histogram 或
+  image-editing tools。
+- Before/after slider 從 50% 開始。
+- 拖曳 divider 會移動 comparison position。
+- 點擊 image 任意位置會讓 slider 跳到該位置。
+- Preview display normalization 只允許用於螢幕顯示，不得影響 saved output files。
 
 ## Input and output formats
 
-First release input formats:
+第一版 input formats：
 
 - `.tif`
 - `.tiff`
@@ -208,7 +205,7 @@ First release input formats:
 - `.dm3`
 - `.dm4`
 
-Formats intentionally excluded from the first release:
+第一版刻意排除的 formats：
 
 - `.ser`
 - `.emd`
@@ -216,7 +213,7 @@ Formats intentionally excluded from the first release:
 - `.mrc`
 - `.raw`
 
-Output rules:
+Output rules：
 
 | Input            | Output              |
 | ---------------- | ------------------- |
@@ -225,116 +222,103 @@ Output rules:
 | `.jpg` / `.jpeg` | `.tif`              |
 | `.dm3` / `.dm4`  | 32-bit float `.tif` |
 
-For normal image formats, output should preserve the original bit depth where
-possible. Model processing can use `float32` internally, but saved output must
-not use automatic contrast stretching, histogram equalization, or min/max
-rescaling. If model output exceeds the original image's actual value range, it
-is clipped to the original min/max before saving.
+一般 image formats 的 output 應盡可能保留原始 bit depth。Model processing 內部可使用
+`float32`，但 saved output 不得使用 automatic contrast stretching、histogram
+equalization 或 min/max rescaling。如果 model output 超出原圖實際 value range，儲存前
+會 clip 到原圖 min/max。
 
-RGB/RGBA inputs are accepted but converted to grayscale for model processing.
-Alpha channels are not preserved.
+RGB/RGBA inputs 可接受，但會轉成 grayscale 供 model processing。Alpha channels 不會保留。
 
-Metadata should be preserved where safely possible. For formats that cannot be
-written back safely, especially `.dm3` and `.dm4`, output is written as TIFF and
-available metadata should be carried into TIFF metadata or an adjacent sidecar
-only if this can be done safely.
+Metadata 應在安全可行時保留。對無法安全寫回的 formats，尤其 `.dm3` 和 `.dm4`，
+output 會寫成 TIFF；只有在安全時，才把可用 metadata 帶入 TIFF metadata 或相鄰 sidecar。
 
-The MVS metadata policy is conservative: preserve safe standard metadata where
-possible, but never risk corrupting the output image to force metadata
-round-tripping. Full `.dm3` / `.dm4` metadata parity is not a first-release
-requirement.
+MVS metadata policy 採保守策略：盡可能保留 safe standard metadata，但絕不為了強迫
+metadata round-tripping 而冒著 corrupt output image 的風險。完整 `.dm3` / `.dm4`
+metadata parity 不是第一版需求。
 
-Multi-page TIFF and stack-like data are rejected in the first release. Only one
-single 2D image is supported per input file.
+第一版會拒絕 multi-page TIFF 和 stack-like data。每個 input file 只支援一張 single
+2D image。
 
 ## Saving behavior
 
-Single and Batch use the same saving concept:
+Single 和 Batch 使用相同的 saving concept：
 
-- Output is written into a mode-specific subfolder next to the original image.
-- Output filename stays the same, except when the output format changes.
-- Existing files are overwritten.
-- Original raw files are not copied into the output folder.
+- Output 寫入原始 image 旁邊、對應 mode 的 subfolder。
+- Output filename 保持相同，除非 output format 改變。
+- Existing files 會被 overwrite。
+- Original raw files 不會複製到 output folder。
 
-Examples:
+Examples：
 
 - `D:\caseA\wafer01.tif` with `HRSTEM` ->
   `D:\caseA\denoised_HRSTEM\wafer01.tif`
 - `D:\caseA\wafer01.jpg` with `HRSEM` ->
   `D:\caseA\denoised_HRSEM\wafer01.tif`
 
-If output filenames collide, the later output overwrites the earlier output.
-The UI should make overwrite behavior clear.
+如果 output filenames collision，後產生的 output 會 overwrite 前一個 output。
+UI 應清楚顯示 overwrite behavior。
 
-The app must reject inputs located inside any `denoised_*` folder to avoid
-accidentally denoising already processed output.
+App 必須拒絕位於任何 `denoised_*` folder 裡的 input，避免不小心再次 denoise 已處理過的
+output。
 
 ## Processing behavior
 
-The app should automatically choose inference strategy:
+App 應自動選擇 inference strategy：
 
-- Longest image side `<= 1536 px`: whole-image inference
-- Longest image side `> 1536 px`: patch-based inference
-- Patch-based settings for Windows CPU laptops:
+- Longest image side `<= 1536 px`：whole-image inference
+- Longest image side `> 1536 px`：patch-based inference
+- Windows CPU laptops 的 patch-based settings：
   - `patch_size=512`
   - `stride=256`
   - `batch_size=2`
 
-Large images are not blocked, but the UI should warn that processing may take
-several minutes.
+Large images 不會只因尺寸被 blocked，但 UI 應警告 processing 可能需要數分鐘。
 
-Cancellation:
+Cancellation：
 
-- Single mode: no cancel button; controls are disabled while processing.
-- Batch mode: cancel is supported between files. The current file finishes,
-  then the batch stops.
+- Single mode：沒有 cancel button；processing 時 controls 會 disabled。
+- Batch mode：支援在 files 之間 cancel。Current file 會先完成，接著 batch 停止。
 
 ## Batch behavior
 
-- Batch mode only supports `Add Folder`.
-- The selected folder is scanned non-recursively.
-- Unsupported files are skipped and shown in the on-screen status list.
-- Unexpected per-file restore failures are reported as failed without stopping
-  later files that can still be processed safely.
-- Cancelling a batch marks remaining files as cancelled and keeps already
-  written outputs.
-- Final batch status summarizes restored, failed, skipped, and cancelled counts.
-- No CSV log is produced in the first release.
-- If the selected folder name starts with `denoised_`, batch processing is
-  blocked.
+- Batch mode 只支援 `Add Folder`。
+- Selected folder 會 non-recursively scan。
+- Unsupported files 會 skipped，並顯示在 on-screen status list。
+- Unexpected per-file restore failures 會回報為 failed，不會停止後續仍可安全處理的 files。
+- Cancelling batch 會把 remaining files 標成 cancelled，並保留已寫出的 outputs。
+- Final batch status 會 summary restored、failed、skipped、cancelled counts。
+- 第一版不產生 CSV log。
+- 如果 selected folder name 以 `denoised_` 開頭，batch processing 會被 blocked。
 
 ## Design direction
 
-The UI should follow the Apple-style design reference at:
+UI 應遵循 Apple-style design reference：
 
 `/Users/lesterc/Project/design-md/apple/DESIGN.md`
 
-Practical interpretation for this desktop tool:
+對這個 desktop tool 的實務解讀：
 
-- Clean light UI.
-- Minimal chrome.
-- Blue as the main action color.
-- Rounded controls where appropriate.
-- Avoid decorative effects that distract from image inspection.
+- Clean light UI。
+- Minimal chrome。
+- Blue 作為 main action color。
+- Controls 在適當處使用 rounded style。
+- 避免會干擾 image inspection 的 decorative effects。
 
 ## Known constraints and trade-offs
 
-- `tk_r_em` is licensed under GPL-3.0-only, so the first target is internal
-  company use.
-- The app uses a local minimal engine wrapper instead of the full upstream
-  `tk_r_em` package to keep the desktop release smaller and easier to control.
-- `tk_r_em` works on 2D grayscale EM-style images. The first release does not
-  support stacks, multi-page TIFF, 3D volume, or 4D STEM data.
-- Some microscope-native formats are read-only in the available IO libraries,
-  so `.dm3` and `.dm4` are exported as TIFF.
-- CPU-only inference is slower than GPU inference but is simpler and more
-  reliable for the first Windows laptop release.
-- No image adjustment tools are included, to avoid changing engineering image
-  interpretation.
+- `tk_r_em` 採 GPL-3.0-only，因此第一目標是 internal company use。
+- App 使用 local minimal engine wrapper，而不是完整 upstream `tk_r_em` package，讓 desktop
+  release 更小且更容易控制。
+- `tk_r_em` 適用於 2D grayscale EM-style images。第一版不支援 stacks、multi-page TIFF、
+  3D volume 或 4D STEM data。
+- 有些 microscope-native formats 在可用 IO libraries 中是 read-only，因此 `.dm3` 和
+  `.dm4` 會 export as TIFF。
+- CPU-only inference 比 GPU inference 慢，但對第一版 Windows laptop release 來說更簡單、
+  更可靠。
+- 不包含 image adjustment tools，避免改變工程影像判讀。
 
 ## Test data strategy
 
-No real company FA image data is available on the development machine. First
-release validation uses synthetic images and any safe upstream sample data that
-can be used without exposing company data. Real FA image regression cases should
-be added later when representative data is available.
+Development machine 上沒有真實公司 FA image data。第一版 validation 使用 synthetic images
+和任何可安全使用、不暴露公司資料的 upstream sample data。等未來有具代表性且不敏感的資料後，
+再加入 real FA image regression cases。
