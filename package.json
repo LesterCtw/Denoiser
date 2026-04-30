@@ -1,0 +1,23 @@
+{
+  "name": "denoiser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pre-commit tooling for the Denoiser Python desktop app.",
+  "scripts": {
+    "prepare": "husky",
+    "test": "uv run pytest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LesterCtw/Denoiser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LesterCtw/Denoiser/issues"
+  },
+  "homepage": "https://github.com/LesterCtw/Denoiser#readme",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3"
+  }
+}
