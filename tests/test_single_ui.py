@@ -50,6 +50,19 @@ def test_single_ui_shows_overwrite_message_before_restore(tmp_path: Path) -> Non
     assert "Existing outputs will be overwritten." in window.status_text()
 
 
+def test_single_ui_previews_raw_image_after_selection(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(source, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+
+    window = MainWindow(engine=object())
+    window.set_single_image_path(source)
+
+    compare_view = window.findChild(CompareView, "CompareView")
+    assert compare_view is not None
+    assert compare_view.has_images()
+
+
 def test_single_ui_warns_when_selected_image_is_large(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     source = tmp_path / "large.tif"

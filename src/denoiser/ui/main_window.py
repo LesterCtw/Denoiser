@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from denoiser.engine import DenoiseMode, OnnxDenoiser
-from denoiser.image_io import ImageFormatError, image_requires_patch_based
+from denoiser.image_io import ImageFormatError, image_requires_patch_based, load_image
 from denoiser.ui.compare_view import CompareView
 from denoiser.workflow import (
     BatchFileResult,
@@ -64,7 +64,13 @@ class MainWindow(QMainWindow):
 
     def set_single_image_path(self, path: Path) -> None:
         self._single_image_path = Path(path)
-        self._compare_view.clear(f"Selected image: {self._single_image_path}")
+        try:
+            image = load_image(self._single_image_path)
+        except ImageFormatError as exc:
+            self._compare_view.clear(str(exc))
+        else:
+            self._compare_view.set_images(image.pixels, image.pixels)
+
         message = f"Selected: {self._single_image_path.name}. Existing outputs will be overwritten."
         try:
             if image_requires_patch_based(self._single_image_path):
