@@ -30,6 +30,8 @@ Implemented:
   saving, and success/failure status.
 - Batch mode UI wiring for folder selection, shared mode buttons, Start Batch,
   progress, and a scrollable per-file status list.
+- Batch cancellation between files, per-file failure isolation, and final
+  restored/failed/skipped/cancelled summary counts.
 - Before/after compare view for Single mode with fit-to-window drawing, a 50%
   starting divider, drag interaction, and click-to-jump interaction.
 - Image I/O boundary for the first supported formats.
@@ -44,14 +46,13 @@ Implemented:
   workflow, Single UI restore behavior, Batch UI progress/status behavior,
   output naming, before/after compare view interaction, denoised-folder
   rejection, unsupported-input rejection, multi-page TIFF rejection,
-  JPEG-to-TIFF output, PNG/TIFF output preservation,
+  batch cancellation, batch failure isolation, JPEG-to-TIFF output,
+  PNG/TIFF output preservation,
   RGB/RGBA-to-grayscale conversion, overwrite behavior, and uint16 TIFF
   clipping.
 
 Not implemented yet:
 
-- Batch cancellation.
-- Advanced batch per-file failure isolation beyond image I/O skip reporting.
 - TIFF metadata preservation beyond safe basic image writing.
 - Windows release build verification.
 
@@ -293,6 +294,11 @@ Cancellation:
 - Batch mode only supports `Add Folder`.
 - The selected folder is scanned non-recursively.
 - Unsupported files are skipped and shown in the on-screen status list.
+- Unexpected per-file restore failures are reported as failed without stopping
+  later files that can still be processed safely.
+- Cancelling a batch marks remaining files as cancelled and keeps already
+  written outputs.
+- Final batch status summarizes restored, failed, skipped, and cancelled counts.
 - No CSV log is produced in the first release.
 - If the selected folder name starts with `denoised_`, batch processing is
   blocked.

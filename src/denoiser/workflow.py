@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 import numpy as np
 
@@ -29,6 +29,8 @@ class SingleRestoreResult:
 class BatchFileStatus(str, Enum):
     RESTORED = "restored"
     SKIPPED = "skipped"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,18 @@ class BatchRestoreResult:
             result.status is BatchFileStatus.SKIPPED for result in self.file_results
         )
 
+    @property
+    def failed_count(self) -> int:
+        return sum(
+            result.status is BatchFileStatus.FAILED for result in self.file_results
+        )
+
+    @property
+    def cancelled_count(self) -> int:
+        return sum(
+            result.status is BatchFileStatus.CANCELLED for result in self.file_results
+        )
+
 
 def batch_input_paths(folder: Path) -> list[Path]:
     return sorted(path for path in Path(folder).iterdir() if path.is_file())
@@ -70,34 +84,61 @@ def restore_batch_folder(
     folder: Path,
     mode: DenoiseMode,
     engine: RestoreEngine,
+    cancel_requested: Callable[[], bool] | None = None,
 ) -> BatchRestoreResult:
     folder_path = Path(folder)
     file_results: list[BatchFileResult] = []
-    for path in batch_input_paths(folder_path):
-        try:
-            result = restore_single_image(path, mode, engine)
-        except ImageFormatError as exc:
-            file_results.append(
+    paths = batch_input_paths(folder_path)
+    for index, path in enumerate(paths):
+        if cancel_requested is not None and cancel_requested():
+            file_results.extend(
                 BatchFileResult(
-                    source_path=path,
-                    status=BatchFileStatus.SKIPPED,
-                    message=str(exc),
+                    source_path=remaining_path,
+                    status=BatchFileStatus.CANCELLED,
+                    message="Not processed",
                 )
+                for remaining_path in paths[index:]
             )
-        else:
-            file_results.append(
-                BatchFileResult(
-                    source_path=result.source_path,
-                    status=BatchFileStatus.RESTORED,
-                    message="Restored",
-                    output_path=result.output_path,
-                )
-            )
+            break
+
+        file_results.append(restore_batch_file(path, mode, engine))
 
     return BatchRestoreResult(
         folder_path=folder_path,
         mode=mode,
         file_results=file_results,
+    )
+
+
+def restore_batch_file(
+    path: Path,
+    mode: DenoiseMode,
+    engine: RestoreEngine,
+) -> BatchFileResult:
+    try:
+        result = restore_single_image(path, mode, engine)
+    except ImageFormatError as exc:
+        return BatchFileResult(
+            source_path=path,
+            status=BatchFileStatus.SKIPPED,
+            message=str(exc),
+        )
+    except Exception as exc:
+        return failed_batch_file(path, exc)
+
+    return BatchFileResult(
+        source_path=result.source_path,
+        status=BatchFileStatus.RESTORED,
+        message="Restored",
+        output_path=result.output_path,
+    )
+
+
+def failed_batch_file(path: Path, exc: Exception) -> BatchFileResult:
+    return BatchFileResult(
+        source_path=path,
+        status=BatchFileStatus.FAILED,
+        message=str(exc),
     )
 
 

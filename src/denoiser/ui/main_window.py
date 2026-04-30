@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFileDialog,
@@ -24,9 +24,12 @@ from denoiser.engine import DenoiseMode, OnnxDenoiser
 from denoiser.image_io import ImageFormatError, image_requires_patch_based
 from denoiser.ui.compare_view import CompareView
 from denoiser.workflow import (
+    BatchFileResult,
     BatchFileStatus,
+    BatchRestoreResult,
     RestoreEngine,
-    restore_batch_folder,
+    batch_input_paths,
+    restore_batch_file,
     restore_single_image,
 )
 
@@ -38,6 +41,11 @@ class MainWindow(QMainWindow):
         self._single_image_path: Path | None = None
         self._batch_folder_path: Path | None = None
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
+        self._batch_mode: DenoiseMode = DenoiseMode.HRSTEM
+        self._batch_paths: list[Path] = []
+        self._batch_results: list[BatchFileResult] = []
+        self._batch_index = 0
+        self._batch_cancel_requested = False
 
         self.setWindowTitle("Denoiser")
         self.resize(1280, 800)
@@ -171,6 +179,11 @@ class MainWindow(QMainWindow):
         self.start_batch_button.hide()
         layout.addWidget(self.start_batch_button)
 
+        self.cancel_batch_button = QPushButton("Cancel")
+        self.cancel_batch_button.clicked.connect(self._cancel_batch_restore)
+        self.cancel_batch_button.hide()
+        layout.addWidget(self.cancel_batch_button)
+
         layout.addStretch(1)
 
         self._status = QLabel("Ready")
@@ -235,6 +248,7 @@ class MainWindow(QMainWindow):
         self._preview_stack.setCurrentWidget(self._compare_view)
         self.restore_button.show()
         self.start_batch_button.hide()
+        self.cancel_batch_button.hide()
         self._set_status("Ready")
 
     def _show_batch_controls(self) -> None:
@@ -243,6 +257,7 @@ class MainWindow(QMainWindow):
         self._compare_view.clear("Batch mode")
         self.restore_button.hide()
         self.start_batch_button.show()
+        self.cancel_batch_button.hide()
         self._set_status("Select a folder for Batch mode.")
 
     def _selected_mode(self) -> DenoiseMode:
@@ -274,35 +289,81 @@ class MainWindow(QMainWindow):
             self._set_status("Add a folder before starting Batch.")
             return
 
-        mode = self._selected_mode()
-        self.start_batch_button.setEnabled(False)
+        self._batch_mode = self._selected_mode()
+        self._batch_paths = batch_input_paths(self._batch_folder_path)
+        self._batch_results = []
+        self._batch_index = 0
+        self._batch_cancel_requested = False
         self._batch_list.clear()
+        self._set_batch_progress(f"0 of {len(self._batch_paths)} files")
         self._set_status("Batch restoring...")
-        try:
-            result = restore_batch_folder(self._batch_folder_path, mode, self._engine)
-        except Exception as exc:
-            self._set_status(f"Batch failed: {exc}")
-        else:
-            self._set_batch_progress(f"{result.total_count} of {result.total_count} files")
-            for file_result in result.file_results:
-                status = (
-                    "Restored"
-                    if file_result.status is BatchFileStatus.RESTORED
-                    else "Skipped"
-                )
-                detail = (
-                    str(file_result.output_path)
-                    if file_result.output_path is not None
-                    else file_result.message
-                )
-                self._batch_list.addItem(
-                    f"{file_result.source_path.name} - {status}: {detail}"
-                )
-            self._set_status(
-                f"Batch complete: {result.restored_count} restored, {result.skipped_count} skipped."
+        self.start_batch_button.hide()
+        self.cancel_batch_button.show()
+        QTimer.singleShot(0, self._restore_next_batch_file)
+
+    def _cancel_batch_restore(self) -> None:
+        self._batch_cancel_requested = True
+        self.cancel_batch_button.setEnabled(False)
+        self._set_status("Cancelling batch...")
+
+    def _restore_next_batch_file(self) -> None:
+        if self._batch_cancel_requested:
+            self._cancel_remaining_batch_files()
+            self._finish_batch_restore()
+            return
+
+        if self._batch_index >= len(self._batch_paths):
+            self._finish_batch_restore()
+            return
+
+        path = self._batch_paths[self._batch_index]
+        file_result = restore_batch_file(path, self._batch_mode, self._engine)
+        self._batch_results.append(file_result)
+        self._append_batch_file_result(file_result)
+        self._batch_index += 1
+        self._set_batch_progress(f"{self._batch_index} of {len(self._batch_paths)} files")
+        QTimer.singleShot(0, self._restore_next_batch_file)
+
+    def _cancel_remaining_batch_files(self) -> None:
+        for path in self._batch_paths[self._batch_index :]:
+            file_result = BatchFileResult(
+                source_path=path,
+                status=BatchFileStatus.CANCELLED,
+                message="Not processed",
             )
-        finally:
-            self.start_batch_button.setEnabled(True)
+            self._batch_results.append(file_result)
+            self._append_batch_file_result(file_result)
+
+        self._batch_index = len(self._batch_paths)
+        self._set_batch_progress(f"{self._batch_index} of {len(self._batch_paths)} files")
+
+    def _finish_batch_restore(self) -> None:
+        result = BatchRestoreResult(
+            folder_path=self._batch_folder_path or Path(),
+            mode=self._batch_mode,
+            file_results=self._batch_results,
+        )
+        self._set_status(
+            "Batch complete: "
+            f"{result.restored_count} restored, "
+            f"{result.failed_count} failed, "
+            f"{result.skipped_count} skipped, "
+            f"{result.cancelled_count} cancelled."
+        )
+        self.cancel_batch_button.setEnabled(True)
+        self.cancel_batch_button.hide()
+        self.start_batch_button.show()
+
+    def _append_batch_file_result(self, file_result) -> None:
+        status = _batch_status_label(file_result.status)
+        detail = (
+            str(file_result.output_path)
+            if file_result.output_path is not None
+            else file_result.message
+        )
+        self._batch_list.addItem(
+            f"{file_result.source_path.name} - {status}: {detail}"
+        )
 
     def _set_batch_progress(self, message: str) -> None:
         self._batch_progress.setText(message)
@@ -403,3 +464,13 @@ def _stylesheet() -> str:
         padding: 8px;
     }
     """
+
+
+def _batch_status_label(status: BatchFileStatus) -> str:
+    if status is BatchFileStatus.RESTORED:
+        return "Restored"
+    if status is BatchFileStatus.FAILED:
+        return "Failed"
+    if status is BatchFileStatus.CANCELLED:
+        return "Cancelled"
+    return "Skipped"
