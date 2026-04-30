@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QImage, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 
@@ -35,6 +35,16 @@ class CompareView(QWidget):
         self._divider_position = 0.5
         self.update()
 
+    def set_raw_image(self, raw_pixels: np.ndarray) -> None:
+        raw = np.asarray(raw_pixels)
+        if raw.ndim != 2:
+            raise ValueError("CompareView only supports 2D images.")
+
+        self._raw_image = _to_display_image(raw)
+        self._restored_image = None
+        self._divider_position = 0.5
+        self.update()
+
     def clear(self, message: str | None = None) -> None:
         self._raw_image = None
         self._restored_image = None
@@ -43,6 +53,9 @@ class CompareView(QWidget):
         self.update()
 
     def has_images(self) -> bool:
+        return self._raw_image is not None
+
+    def is_comparing(self) -> bool:
         return self._raw_image is not None and self._restored_image is not None
 
     def divider_position(self) -> float:
@@ -64,27 +77,41 @@ class CompareView(QWidget):
 
         image_rect = self._image_rect()
         assert self._raw_image is not None
-        assert self._restored_image is not None
 
         painter.drawImage(QRectF(image_rect), self._raw_image)
 
+        if not self.is_comparing():
+            return
+
+        assert self._restored_image is not None
         divider_x = image_rect.left() + image_rect.width() * self._divider_position
         restored_clip = QRectF(image_rect)
-        restored_clip.setRight(divider_x)
+        restored_clip.setLeft(divider_x)
         painter.save()
         painter.setClipRect(restored_clip)
         painter.drawImage(QRectF(image_rect), self._restored_image)
         painter.restore()
 
-        pen = QPen(Qt.GlobalColor.white)
+        pen = QPen(QColor("#ffffff"))
+        pen.setWidth(7)
+        painter.setPen(pen)
+        painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
+
+        pen = QPen(QColor("#0066cc"))
         pen.setWidth(3)
         painter.setPen(pen)
         painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
 
-        pen = QPen(Qt.GlobalColor.blue)
-        pen.setWidth(1)
-        painter.setPen(pen)
-        painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
+        handle_radius = 10
+        handle_center_y = image_rect.center().y()
+        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(QPen(QColor("#0066cc"), 2))
+        painter.drawEllipse(
+            int(divider_x) - handle_radius,
+            handle_center_y - handle_radius,
+            handle_radius * 2,
+            handle_radius * 2,
+        )
 
     def _image_rect(self) -> QRect:
         if self._raw_image is None:
@@ -100,7 +127,7 @@ class CompareView(QWidget):
         return QRect(top_left, image_size)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
-        if event.button() == Qt.MouseButton.LeftButton and self.has_images():
+        if event.button() == Qt.MouseButton.LeftButton and self.is_comparing():
             self._dragging = True
             self._set_divider_from_point(event.position().toPoint())
 

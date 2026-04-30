@@ -30,8 +30,9 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
   可捲動的 per-file status list。
 - Batch cancellation between files、per-file failure isolation，以及 final
   restored/failed/skipped/cancelled summary counts。
-- Single mode before/after compare view：fit-to-window drawing、50% 初始 divider、
-  drag interaction、click-to-jump interaction。
+- Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
+  before/after compare view、50% 初始 divider、drag interaction、click-to-jump
+  interaction。
 - 第一版支援格式的 image I/O boundary。
 - 使用 `denoised_MODE` folders 的 output path rules。
 - Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
@@ -180,7 +181,8 @@ Layout：
 
 - 左側：controls、file/folder selection、mode buttons、progress/status。
 - 右側：
-  - Single mode：處理前的 raw image，接著顯示 before/after comparison。
+  - Single mode：選圖後顯示 raw-only preview；restore 後顯示 before/after
+    comparison。
   - Batch mode：只顯示 progress/status；不顯示 image preview。
 
 ## Image comparison behavior
@@ -188,7 +190,9 @@ Layout：
 - Preview 一律把整張 image fit 到可用的右側區域。
 - 第一版不包含 zoom、pan、crop、rotate、brightness、contrast、histogram 或
   image-editing tools。
-- Before/after slider 從 50% 開始。
+- 選圖後的 raw-only preview 不顯示 before/after slider。
+- Restore 後的 before/after slider 從 50% 開始。
+- Comparison 左側顯示 raw image，右側顯示 restored image。
 - 拖曳 divider 會移動 comparison position。
 - 點擊 image 任意位置會讓 slider 跳到該位置。
 - Preview display normalization 只允許用於螢幕顯示，不得影響 saved output files。

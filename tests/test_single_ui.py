@@ -36,6 +36,7 @@ def test_single_ui_restore_button_saves_output_and_updates_status(tmp_path: Path
     compare_view = window.findChild(CompareView, "CompareView")
     assert compare_view is not None
     assert compare_view.has_images()
+    assert compare_view.is_comparing()
     assert compare_view.divider_position() == 0.5
 
 
@@ -61,6 +62,7 @@ def test_single_ui_previews_raw_image_after_selection(tmp_path: Path) -> None:
     compare_view = window.findChild(CompareView, "CompareView")
     assert compare_view is not None
     assert compare_view.has_images()
+    assert not compare_view.is_comparing()
 
 
 def test_single_ui_warns_when_selected_image_is_large(tmp_path: Path) -> None:

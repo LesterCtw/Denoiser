@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         except ImageFormatError as exc:
             self._compare_view.clear(str(exc))
         else:
-            self._compare_view.set_images(image.pixels, image.pixels)
+            self._compare_view.set_raw_image(image.pixels)
 
         message = f"Selected: {self._single_image_path.name}. Existing outputs will be overwritten."
         try:
