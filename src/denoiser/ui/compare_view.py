@@ -103,20 +103,20 @@ class CompareView(QWidget):
         painter.drawPixmap(image_rect.topLeft(), self._scaled_restored)
         painter.restore()
 
-        pen = QPen(QColor("#202020"))
-        pen.setWidth(5)
-        painter.setPen(pen)
-        painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
-
-        pen = QPen(QColor("#2f80ed"))
+        pen = QPen(QColor("#1b1d22"))
         pen.setWidth(3)
         painter.setPen(pen)
         painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
 
-        handle_radius = 10
+        pen = QPen(QColor("#2f80ed"))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.drawLine(int(divider_x), image_rect.top(), int(divider_x), image_rect.bottom())
+
+        handle_radius = 8
         handle_center_y = image_rect.center().y()
         painter.setBrush(QColor("#2f80ed"))
-        painter.setPen(QPen(QColor("#202020"), 3))
+        painter.setPen(QPen(QColor("#1b1d22"), 2))
         painter.drawEllipse(
             int(divider_x) - handle_radius,
             handle_center_y - handle_radius,

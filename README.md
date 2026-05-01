@@ -47,7 +47,7 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
   patch-based inference、Single restore workflow、Batch restore workflow、
   Single UI restore behavior、Single restore processing status transition、
   Single/Batch animated processing indicator behavior、
-  Batch UI progress/status behavior、output naming、
+  readable Single/Batch status output、Batch UI progress/status behavior、output naming、
   Batch restore runner orchestration、
   before/after compare view interaction、Single preview stale tooltip regression、
   1024x1024 first-drag rendering smoke check、

@@ -74,7 +74,8 @@ def test_single_ui_restore_button_saves_output_and_updates_status(tmp_path: Path
 
     output_path = tmp_path / "denoised_LRSEM" / "wafer.tif"
     assert output_path.is_file()
-    assert str(output_path) in window.status_text()
+    assert window.status_text() == "Saved: wafer.tif\nFolder: denoised_LRSEM"
+    assert window.status_tooltip() == str(output_path)
     assert window.restore_button.isEnabled()
     assert window.mode_button(DenoiseMode.LRSEM).isEnabled()
     compare_view = window.findChild(CompareView, "CompareView")
@@ -93,6 +94,7 @@ def test_single_ui_shows_overwrite_message_before_restore(tmp_path: Path) -> Non
     window.set_single_image_path(source)
 
     assert "Existing outputs will be overwritten." in window.status_text()
+    assert window.status_tooltip() == str(source)
 
 
 def test_single_ui_previews_raw_image_after_selection(tmp_path: Path) -> None:
