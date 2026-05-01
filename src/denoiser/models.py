@@ -1,13 +1,20 @@
-"""Model file locations and validation helpers."""
+"""Bundled model inventory for the first Denoiser release."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from denoiser.engine import DEFAULT_MODELS_DIR, DenoiseMode, MODEL_TAGS
+from denoiser.engine import DenoiseMode
 
 
-MODELS_DIR = DEFAULT_MODELS_DIR
+MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
+
+MODEL_TAGS: dict[DenoiseMode, str] = {
+    DenoiseMode.HRSTEM: "sfr_hrstem",
+    DenoiseMode.LRSTEM: "sfr_lrstem",
+    DenoiseMode.HRSEM: "sfr_hrsem",
+    DenoiseMode.LRSEM: "sfr_lrsem",
+}
 
 
 def model_path_for(mode: DenoiseMode, models_dir: Path = MODELS_DIR) -> Path:

@@ -21,6 +21,13 @@ isolation, and a Single mode before/after compare view.
 - **HRSTEM / LRSTEM / HRSEM / LRSEM**: The four supported first-release
   denoising modes.
 - **MVS**: Minimum Viable Solution; the smallest useful first implementation.
+- **Batch restore run**: A single Batch mode execution over the selected folder.
+  It should preserve per-file progress so the UI can show each restored,
+  skipped, failed, or cancelled file as the run advances.
+- **Bundled model inventory**: The first-release ONNX model set that must ship
+  with Denoiser, including the mapping from each denoising mode to its required
+  model filename and the missing-model checks used before release or runtime
+  inference.
 
 ## Current assumptions
 

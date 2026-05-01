@@ -38,16 +38,6 @@ class DenoiseSession(Protocol):
     def run(self, input_tensor: np.ndarray) -> np.ndarray: ...
 
 
-MODEL_TAGS: dict[DenoiseMode, str] = {
-    DenoiseMode.HRSTEM: "sfr_hrstem",
-    DenoiseMode.LRSTEM: "sfr_lrstem",
-    DenoiseMode.HRSEM: "sfr_hrsem",
-    DenoiseMode.LRSEM: "sfr_lrsem",
-}
-
-DEFAULT_MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
-
-
 OUTPUT_FOLDERS: dict[DenoiseMode, str] = {
     mode: f"denoised_{mode.value}" for mode in DenoiseMode
 }
@@ -64,10 +54,15 @@ class OnnxDenoiser:
 
     def __init__(
         self,
-        models_dir: Path = DEFAULT_MODELS_DIR,
+        models_dir: Path | None = None,
         session_factory: type[DenoiseSession] | None = None,
         settings: InferenceSettings | None = None,
     ) -> None:
+        if models_dir is None:
+            from denoiser.models import MODELS_DIR
+
+            models_dir = MODELS_DIR
+
         self._models_dir = Path(models_dir)
         self._session_factory = session_factory or _OrtSession
         self._settings = settings or InferenceSettings()
@@ -143,7 +138,9 @@ class OnnxDenoiser:
 
     def _session_for(self, mode: DenoiseMode) -> DenoiseSession:
         if mode not in self._sessions:
-            model_path = self._models_dir / f"{MODEL_TAGS[mode]}.onnx"
+            from denoiser.models import model_path_for
+
+            model_path = model_path_for(mode, self._models_dir)
             if not model_path.is_file():
                 raise DenoiseEngineError(f"Required model file is missing: {model_path.name}")
             self._sessions[mode] = self._session_factory(model_path)

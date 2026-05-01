@@ -80,34 +80,77 @@ def batch_input_paths(folder: Path) -> list[Path]:
     return sorted(path for path in Path(folder).iterdir() if path.is_file())
 
 
+class BatchRestoreRun:
+    """A single Batch mode execution with per-file progress."""
+
+    def __init__(
+        self,
+        folder: Path,
+        mode: DenoiseMode,
+        engine: RestoreEngine,
+    ) -> None:
+        self.folder_path = Path(folder)
+        self.mode = mode
+        self._engine = engine
+        self._paths = batch_input_paths(self.folder_path)
+        self._index = 0
+        self._file_results: list[BatchFileResult] = []
+
+    @property
+    def total_count(self) -> int:
+        return len(self._paths)
+
+    @property
+    def completed_count(self) -> int:
+        return len(self._file_results)
+
+    def next_file_result(self) -> BatchFileResult | None:
+        if self._index >= len(self._paths):
+            return None
+
+        path = self._paths[self._index]
+        result = restore_batch_file(path, self.mode, self._engine)
+        self._file_results.append(result)
+        self._index += 1
+        return result
+
+    def cancel_remaining(self) -> list[BatchFileResult]:
+        cancelled_results = [
+            BatchFileResult(
+                source_path=path,
+                status=BatchFileStatus.CANCELLED,
+                message="Not processed",
+            )
+            for path in self._paths[self._index :]
+        ]
+        self._file_results.extend(cancelled_results)
+        self._index = len(self._paths)
+        return cancelled_results
+
+    def result(self) -> BatchRestoreResult:
+        return BatchRestoreResult(
+            folder_path=self.folder_path,
+            mode=self.mode,
+            file_results=list(self._file_results),
+        )
+
+
 def restore_batch_folder(
     folder: Path,
     mode: DenoiseMode,
     engine: RestoreEngine,
     cancel_requested: Callable[[], bool] | None = None,
 ) -> BatchRestoreResult:
-    folder_path = Path(folder)
-    file_results: list[BatchFileResult] = []
-    paths = batch_input_paths(folder_path)
-    for index, path in enumerate(paths):
+    run = BatchRestoreRun(folder, mode, engine)
+    while True:
         if cancel_requested is not None and cancel_requested():
-            file_results.extend(
-                BatchFileResult(
-                    source_path=remaining_path,
-                    status=BatchFileStatus.CANCELLED,
-                    message="Not processed",
-                )
-                for remaining_path in paths[index:]
-            )
+            run.cancel_remaining()
             break
 
-        file_results.append(restore_batch_file(path, mode, engine))
+        if run.next_file_result() is None:
+            break
 
-    return BatchRestoreResult(
-        folder_path=folder_path,
-        mode=mode,
-        file_results=file_results,
-    )
+    return run.result()
 
 
 def restore_batch_file(
