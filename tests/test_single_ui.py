@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.ui.compare_view import CompareView
 from denoiser.ui.main_window import MainWindow
 

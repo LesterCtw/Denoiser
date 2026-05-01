@@ -9,8 +9,8 @@ from typing import Callable, Protocol
 
 import numpy as np
 
-from denoiser.engine import DenoiseMode
 from denoiser.image_io import ImageFormatError, load_image, save_restored_image
+from denoiser.models import DenoiseMode
 
 
 class RestoreEngine(Protocol):

@@ -8,18 +8,12 @@ on the full upstream tk_r_em package at runtime.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
 
-
-class DenoiseMode(str, Enum):
-    HRSTEM = "HRSTEM"
-    LRSTEM = "LRSTEM"
-    HRSEM = "HRSEM"
-    LRSEM = "LRSEM"
+from denoiser.models import DenoiseMode
 
 
 @dataclass(frozen=True)

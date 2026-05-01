@@ -5,12 +5,49 @@ import pytest
 
 from denoiser.engine import (
     DenoiseEngineError,
-    DenoiseMode,
     InferenceSettings,
     OnnxDenoiser,
     should_use_patch_based,
 )
-from denoiser.models import missing_model_paths
+from denoiser.models import (
+    DenoiseMode,
+    default_denoise_mode,
+    missing_model_paths,
+    mode_label_for,
+    model_tag_for,
+    output_folder_for_mode,
+    supported_denoise_modes,
+)
+
+
+def test_bundled_model_inventory_matches_mvs_modes() -> None:
+    modes = supported_denoise_modes()
+
+    assert modes == (
+        DenoiseMode.HRSTEM,
+        DenoiseMode.LRSTEM,
+        DenoiseMode.HRSEM,
+        DenoiseMode.LRSEM,
+    )
+    assert default_denoise_mode() is DenoiseMode.HRSTEM
+    assert [mode_label_for(mode) for mode in modes] == [
+        "HRSTEM",
+        "LRSTEM",
+        "HRSEM",
+        "LRSEM",
+    ]
+    assert [model_tag_for(mode) for mode in modes] == [
+        "sfr_hrstem",
+        "sfr_lrstem",
+        "sfr_hrsem",
+        "sfr_lrsem",
+    ]
+    assert [output_folder_for_mode(mode) for mode in modes] == [
+        "denoised_HRSTEM",
+        "denoised_LRSTEM",
+        "denoised_HRSEM",
+        "denoised_LRSEM",
+    ]
 
 
 def test_missing_model_paths_reports_missing_required_models(tmp_path) -> None:

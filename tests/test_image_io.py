@@ -7,7 +7,7 @@ import tifffile
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.image_io import (
     ImageData,
     ImageFormatError,

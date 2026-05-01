@@ -7,7 +7,7 @@ import pytest
 import tifffile
 from PIL import Image
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.image_io import ImageFormatError
 from denoiser.workflow import restore_single_image
 

@@ -24,7 +24,13 @@ from PySide6.QtWidgets import (
 )
 
 from denoiser.app_icon import load_application_icon
-from denoiser.engine import DenoiseMode, OnnxDenoiser
+from denoiser.engine import OnnxDenoiser
+from denoiser.models import (
+    DenoiseMode,
+    default_denoise_mode,
+    mode_label_for,
+    supported_denoise_modes,
+)
 from denoiser.single_image_inspection import inspect_single_image
 from denoiser.ui.batch_restore_runner import BatchRestoreRunner
 from denoiser.ui.compare_view import CompareView
@@ -224,10 +230,10 @@ class MainWindow(QMainWindow):
 
         model_group = QButtonGroup(sidebar)
         model_group.setExclusive(True)
-        for mode in DenoiseMode:
-            button = QPushButton(mode.value)
+        for mode in supported_denoise_modes():
+            button = QPushButton(mode_label_for(mode))
             button.setCheckable(True)
-            if mode is DenoiseMode.HRSTEM:
+            if mode is default_denoise_mode():
                 button.setChecked(True)
             model_group.addButton(button)
             self._mode_buttons[mode] = button
@@ -351,7 +357,7 @@ class MainWindow(QMainWindow):
         for mode, button in self._mode_buttons.items():
             if button.isChecked():
                 return mode
-        return DenoiseMode.HRSTEM
+        return default_denoise_mode()
 
     def _restore_selected_image(self) -> None:
         if self._single_image_path is None:

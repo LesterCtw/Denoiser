@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.output_paths import (
     is_inside_denoised_folder,
     output_path_for_input,

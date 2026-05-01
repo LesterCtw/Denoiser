@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.ui.batch_restore_runner import BatchRestoreRunner
 from denoiser.workflow import BatchFileResult, BatchFileStatus, BatchRestoreRun
 

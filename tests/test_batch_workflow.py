@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import tifffile
 
-from denoiser.engine import DenoiseMode
+from denoiser.models import DenoiseMode
 from denoiser.workflow import (
     BatchFileStatus,
     BatchRestoreRun,
