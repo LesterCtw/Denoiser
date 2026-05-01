@@ -22,9 +22,25 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 - Windows 10 或 Windows 11。
 - Python 3.12.8 64-bit。
 - 可連網安裝 build dependencies。
-- 此 repository 的 fresh checkout 或下載副本。
+- 此 repository 的 GitHub ZIP 下載副本；如果環境允許，也可以使用 fresh `git clone`。
 
 完整 build/package commands 請見 `docs/windows-build-and-package.md`。
+
+## Source ZIP Check
+
+如果公司環境不能使用 `git`：
+
+1. 從 GitHub 網頁下載 source ZIP。
+2. 解壓縮後進入資料夾，例如 `Denoiser-main`。
+3. 記錄 ZIP filename、download date、GitHub branch 或 PR。
+
+Pass criteria：
+
+- Source folder 包含 `pyproject.toml`、`requirements.txt`、`scripts\build_windows.ps1`。
+- Source folder 包含 `assets\icons\denoiser_icon.ico`。
+- Source folder 包含 `models`、`licenses`、`src`、`docs`。
+- Source folder 沒有舊的 local build artifacts，例如 `.venv`、`build`、`dist`、`release`。
+- 如果沒有 `.git` folder，這是 ZIP workflow 的正常狀況。
 
 ## Build Steps
 
@@ -34,11 +50,24 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 cd path\to\Denoiser
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install "numpy>=1.26"
+python -m pip install "onnxruntime>=1.21"
+python -m pip install "Pillow>=10"
+python -m pip install "PySide6>=6.7"
+python -m pip install "rosettasciio>=0.13"
+python -m pip install "tifffile>=2024.8.10"
+python -m pip install "pyinstaller>=6.10"
+python -m pip install "pytest>=8"
+python -m pip install -e . --no-deps
+python -m pytest
 .\scripts\build_windows.ps1
 ```
 
 預期結果：
 
+- Dependency install 每一步都完成；如果失敗，可以知道是哪個 package 失敗。
+- `python -m pytest` 全部通過。
 - `dist\Denoiser\Denoiser.exe` 存在。
 - Script 完成且沒有 errors。
 - Build script 使用 `assets\icons\denoiser_icon.ico` 作為 `Denoiser.exe` icon。
@@ -129,11 +158,15 @@ Pass criteria：
 - Tester:
 - Windows version:
 - Build machine Python version:
-- Commit:
+- Source type: GitHub ZIP / git clone
+- Source version: commit / branch / PR / ZIP filename / download date
 - Release folder path:
 
 ### Results
 
+- Source ZIP/folder contains required project files: pass/fail
+- Individual dependency installs completed: pass/fail
+- `python -m pytest` passed: pass/fail
 - Build script created `Denoiser.exe`: pass/fail
 - App icon appears on `Denoiser.exe` and app window: pass/fail
 - Runtime dependencies included: pass/fail

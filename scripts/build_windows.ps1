@@ -14,8 +14,14 @@ if (-not (Test-Path $iconPath)) {
 }
 
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-python -m pip install -e .
+python -m pip install "numpy>=1.26"
+python -m pip install "onnxruntime>=1.21"
+python -m pip install "Pillow>=10"
+python -m pip install "PySide6>=6.7"
+python -m pip install "rosettasciio>=0.13"
+python -m pip install "tifffile>=2024.8.10"
+python -m pip install "pyinstaller>=6.10"
+python -m pip install -e . --no-deps
 
 python -m PyInstaller `
   --noconfirm `

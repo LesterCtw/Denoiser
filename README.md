@@ -118,16 +118,18 @@ Windows build target：
 - Python 3.12.8 64-bit
 - PowerShell
 - Standard `pip install` flow
+- Source code 可用 GitHub ZIP download；公司環境不需要 `git`
 
 完整建置與打包步驟記錄在
 `docs/windows-build-and-package.md`。
 
 預期 package flow：
 
-1. Developer 在 Windows machine clone/download 此 repository。
+1. Developer 在 Windows machine 下載 GitHub source ZIP，或在可用時 clone 此 repository。
 2. Developer 確認 `assets\icons\denoiser_icon.ico` 存在。
 3. Developer 使用 Python 3.12.8 建立 `.venv`。
-4. Developer 使用標準 `pip install` commands 安裝 dependencies。
+4. Developer 使用逐一 `pip install` commands 安裝 dependencies，方便定位公司網路或
+   package install failure。
 5. Developer 執行 `.\scripts\build_windows.ps1`。
 6. Build script 產生 folder-style release，內含帶有 app icon 的 `Denoiser.exe`、
    dependencies、licenses、bundled model files、bundled icon asset。

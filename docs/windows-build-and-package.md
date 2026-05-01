@@ -24,7 +24,7 @@ FA engineer 只需要收到整個 `dist\Denoiser` folder，不需要安裝 Pytho
 - Python 3.12.8 64-bit。
 - PowerShell。
 - Internet connection，用於安裝 build dependencies。
-- Fresh checkout of this repository。
+- Source code from GitHub ZIP download, or a fresh `git clone` if `git` is available.
 - App icon exists at `assets\icons\denoiser_icon.ico`。
 
 確認 Python version：
@@ -39,9 +39,36 @@ Expected:
 Python 3.12.8
 ```
 
-## Clean Checkout
+## Get Source Code
 
-Clone repository：
+### Company Environment Without Git
+
+如果公司電腦不能使用 `git`，請用 GitHub 網頁下載 source ZIP：
+
+1. 開啟 `https://github.com/LesterCtw/Denoiser`。
+2. 點 `Code`。
+3. 點 `Download ZIP`。
+4. 解壓縮 ZIP。
+5. 進入解壓縮後的資料夾，例如 `Denoiser-main`。
+
+PowerShell example：
+
+```powershell
+cd path\to\Denoiser-main
+```
+
+GitHub ZIP 不會包含 `.git` folder，所以 `git status`、`git log` 這類 commands 不會
+運作。這是正常狀況，不是 build failure。
+
+請記錄 ZIP 來源，方便之後追蹤版本：
+
+- GitHub branch 或 PR。
+- ZIP filename。
+- Download date。
+
+### Optional Git Clone
+
+如果你的環境可以使用 `git`，也可以 clone repository：
 
 ```powershell
 git clone https://github.com/LesterCtw/Denoiser.git
@@ -56,7 +83,9 @@ git status --short
 
 Expected: no output.
 
-The clean source checkout should not contain local-only folders such as:
+ZIP workflow 沒有 `.git` metadata，請跳過這個 `git status` check。
+
+The clean source folder should not contain local-only folders such as:
 
 - `.venv`
 - `build`
@@ -66,7 +95,7 @@ The clean source checkout should not contain local-only folders such as:
 - `node_modules`
 - `.pytest_cache`
 
-The clean source checkout should contain the app icon:
+The clean source folder should contain the app icon:
 
 ```powershell
 Test-Path .\assets\icons\denoiser_icon.ico
@@ -94,13 +123,42 @@ Expected:
 Python 3.12.8
 ```
 
-Install dependencies:
+Upgrade `pip`:
 
 ```powershell
 python -m pip install --upgrade pip
+```
+
+Install top-level dependencies one by one:
+
+```powershell
+python -m pip install "numpy>=1.26"
+python -m pip install "onnxruntime>=1.21"
+python -m pip install "Pillow>=10"
+python -m pip install "PySide6>=6.7"
+python -m pip install "rosettasciio>=0.13"
+python -m pip install "tifffile>=2024.8.10"
+python -m pip install "pyinstaller>=6.10"
+python -m pip install "pytest>=8"
+python -m pip install -e . --no-deps
+```
+
+為什麼逐一安裝：
+
+- 如果公司網路或 proxy 導致安裝失敗，可以直接知道是哪個 package 失敗。
+- `requirements.txt` 仍保留作為 dependency reference 和批次安裝 fallback。
+- `python -m pip install -e . --no-deps` 會安裝本地 Denoiser package，但不再重複解析
+  dependencies。
+
+如果你想快速批次安裝，也可以使用：
+
+```powershell
 python -m pip install -r requirements.txt
+python -m pip install "pytest>=8"
 python -m pip install -e .
 ```
+
+但如果批次安裝失敗，請回到上面的逐一安裝方式。
 
 ## Run Tests
 
@@ -108,15 +166,14 @@ python -m pip install -e .
 python -m pytest
 ```
 
-Expected:
+Expected: all tests pass.
 
 ```text
-76 passed
+77 passed
 ```
 
-The exact runtime may vary by machine. The important result is that all tests pass.
-The exact test count may change as coverage grows. If it differs, confirm that every
-test passed.
+The exact runtime and test count may vary as coverage grows. The important result is
+that every test passed and there are no failures or errors.
 
 ## Build the Windows App
 
