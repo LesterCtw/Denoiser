@@ -10,6 +10,7 @@
 dist\Denoiser\
   Denoiser.exe
   ...
+  assets\
   models\
   licenses\
 ```
@@ -24,6 +25,7 @@ FA engineer 只需要收到整個 `dist\Denoiser` folder，不需要安裝 Pytho
 - PowerShell。
 - Internet connection，用於安裝 build dependencies。
 - Fresh checkout of this repository。
+- App icon exists at `assets\icons\denoiser_icon.ico`。
 
 確認 Python version：
 
@@ -64,6 +66,18 @@ The clean source checkout should not contain local-only folders such as:
 - `node_modules`
 - `.pytest_cache`
 
+The clean source checkout should contain the app icon:
+
+```powershell
+Test-Path .\assets\icons\denoiser_icon.ico
+```
+
+Expected:
+
+```text
+True
+```
+
 ## Build Setup
 
 Create and activate a virtual environment with Python 3.12.8:
@@ -97,10 +111,12 @@ python -m pytest
 Expected:
 
 ```text
-70 passed
+74 passed
 ```
 
 The exact runtime may vary by machine. The important result is that all tests pass.
+The exact test count may change as coverage grows. If it differs, confirm that every
+test passed.
 
 ## Build the Windows App
 
@@ -122,6 +138,7 @@ Confirm these files exist:
 
 ```powershell
 Test-Path .\dist\Denoiser\Denoiser.exe
+Test-Path .\dist\Denoiser\assets\icons\denoiser_icon.ico
 Test-Path .\dist\Denoiser\models\sfr_hrstem.onnx
 Test-Path .\dist\Denoiser\models\sfr_lrstem.onnx
 Test-Path .\dist\Denoiser\models\sfr_hrsem.onnx
@@ -145,8 +162,8 @@ New-Item -ItemType Directory -Force .\release
 Compress-Archive -Path .\dist\Denoiser -DestinationPath .\release\Denoiser-windows-python-3.12.8.zip -Force
 ```
 
-The zip should contain the `Denoiser` folder, including `Denoiser.exe`, model files,
-runtime dependencies, and license notices.
+The zip should contain the `Denoiser` folder, including `Denoiser.exe`, app icon asset,
+model files, runtime dependencies, and license notices.
 
 Do not commit `dist`, `build`, `release`, `.venv`, or generated zip files. They are local
 build artifacts.

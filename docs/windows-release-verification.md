@@ -13,6 +13,7 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 - Build verification 必須在 Windows 10 或 Windows 11 上執行。
 - Build machine 使用 Python 3.12.8 64-bit 和 `pip`。
 - End-user smoke test 只能使用 release folder。
+- App icon source file 必須存在於 `assets\icons\denoiser_icon.ico`。
 - 不需要敏感的公司 FA image data。請使用 synthetic 或安全的 non-sensitive 2D grayscale image。
 - 第一版不要求在單次 model inference call 中途 cancel。
 
@@ -40,6 +41,7 @@ py -3.12 -m venv .venv
 
 - `dist\Denoiser\Denoiser.exe` 存在。
 - Script 完成且沒有 errors。
+- Build script 使用 `assets\icons\denoiser_icon.ico` 作為 `Denoiser.exe` icon。
 
 ## Release Folder Inspection
 
@@ -49,6 +51,8 @@ Pass criteria：
 
 - `Denoiser.exe` 存在。
 - Release folder 包含 PyInstaller 產生的 runtime dependency files。
+- Release folder 包含 app icon asset：
+  - `assets\icons\denoiser_icon.ico`
 - Release folder 包含以下 model files：
   - `models\sfr_hrstem.onnx`
   - `models\sfr_lrstem.onnx`
@@ -73,6 +77,7 @@ Pass criteria：
 
 - App launches，不要求 Python、`uv`、`pip` 或 internet access。
 - Main window 開啟。
+- Window/taskbar 顯示 Denoiser app icon。
 - UI 保持可讀，並符合既有 clean desktop direction。
 
 ## Single Restore Smoke Test
@@ -130,6 +135,7 @@ Pass criteria：
 ### Results
 
 - Build script created `Denoiser.exe`: pass/fail
+- App icon appears on `Denoiser.exe` and app window: pass/fail
 - Runtime dependencies included: pass/fail
 - Four ONNX models included: pass/fail
 - License notices included: pass/fail

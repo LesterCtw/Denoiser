@@ -8,6 +8,11 @@ if ($pythonVersion -ne "3.12.8") {
   throw "Windows release build requires Python 3.12.8. Found Python $pythonVersion."
 }
 
+$iconPath = Join-Path $repoRoot "assets\icons\denoiser_icon.ico"
+if (-not (Test-Path $iconPath)) {
+  throw "Windows release build requires app icon at $iconPath."
+}
+
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -e .
@@ -18,6 +23,8 @@ python -m PyInstaller `
   --onedir `
   --windowed `
   --name Denoiser `
+  --icon "$iconPath" `
+  --add-data "assets;assets" `
   --paths src `
   --add-data "models;models" `
   --add-data "licenses;licenses" `

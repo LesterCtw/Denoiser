@@ -13,6 +13,7 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Agent instructions：`AGENTS.md`
 - Domain context：`CONTEXT.md`
 - Architecture decisions：`docs/adr/`
+- App icon：`assets/icons/denoiser_icon.ico`
 - Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
@@ -28,6 +29,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 
 - `src/denoiser` package layout 的專案骨架。
 - PySide6 application entry point 和基本 main window。
+- App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
+  Windows build script 會使用同一個 icon。
 - 四個必要 ONNX model files 已放在 `models/`。
 - Third-party notices 和 upstream `tk_r_em` GPL license copy。
 - 支援 whole-image 和 patch-based inference 的最小 CPU ONNX inference wrapper。
@@ -49,7 +52,7 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
 - Conservative metadata preservation：TIFF 保留 safe standard metadata，PNG 保留
   safe text metadata；unsupported metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
-- Focused tests：model mapping、missing model handling、whole-image inference、
+- Focused tests：app icon loading、model mapping、missing model handling、whole-image inference、
   patch-based inference、Single restore workflow、Batch restore workflow、
   Single UI restore behavior、Single restore processing status transition、
   Single/Batch animated processing indicator behavior、
@@ -73,6 +76,7 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 - Target platform：Windows 10/11 laptop PCs
 - Runtime：CPU only
 - Distribution：folder-style Windows release，包含 `Denoiser.exe`
+- App icon：使用 `assets/icons/denoiser_icon.ico`
 - Offline use：必要；model files 會 commit 到此 repo 並一起打包進 release
 - Product name / brand：`Denoiser`
 - UI language：English
@@ -116,13 +120,14 @@ Windows build target：
 預期 package flow：
 
 1. Developer 在 Windows machine clone/download 此 repository。
-2. Developer 使用 Python 3.12.8 建立 `.venv`。
-3. Developer 使用標準 `pip install` commands 安裝 dependencies。
-4. Developer 執行 `.\scripts\build_windows.ps1`。
-5. Build script 產生 folder-style release，內含 `Denoiser.exe`、dependencies、
-   licenses、bundled model files。
-6. Developer 將 `dist\Denoiser` 壓縮成 release zip。
-7. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
+2. Developer 確認 `assets\icons\denoiser_icon.ico` 存在。
+3. Developer 使用 Python 3.12.8 建立 `.venv`。
+4. Developer 使用標準 `pip install` commands 安裝 dependencies。
+5. Developer 執行 `.\scripts\build_windows.ps1`。
+6. Build script 產生 folder-style release，內含帶有 app icon 的 `Denoiser.exe`、
+   dependencies、licenses、bundled model files、bundled icon asset。
+7. Developer 將 `dist\Denoiser` 壓縮成 release zip。
+8. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
 
 End users 不需要 Python、`uv` 或 `pip`。
 
@@ -141,6 +146,9 @@ Denoiser/
   licenses/
     THIRD_PARTY_NOTICES.md
     tk_r_em_LICENSE.txt
+  assets/
+    icons/
+      denoiser_icon.ico
   models/
     sfr_hrsem.onnx
     sfr_hrstem.onnx
@@ -160,6 +168,7 @@ Denoiser/
       __init__.py
       __main__.py
       app.py
+      app_icon.py
       engine.py
       image_io.py
       models.py
@@ -174,6 +183,7 @@ Denoiser/
     test_batch_restore_runner.py
     test_batch_ui.py
     test_batch_workflow.py
+    test_app_icon.py
     test_compare_view.py
     test_engine.py
     test_image_io.py

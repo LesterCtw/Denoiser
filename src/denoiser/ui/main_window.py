@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from denoiser.app_icon import load_application_icon
 from denoiser.engine import DenoiseMode, OnnxDenoiser
 from denoiser.image_io import ImageFormatError, image_requires_patch_based, load_image
 from denoiser.ui.batch_restore_runner import BatchRestoreRunner
@@ -48,6 +49,9 @@ class MainWindow(QMainWindow):
         self._status_plain_text = "Ready"
 
         self.setWindowTitle("Denoiser")
+        icon = load_application_icon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
         self.resize(1280, 800)
         self.setMinimumSize(980, 620)
 
