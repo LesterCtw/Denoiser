@@ -35,6 +35,7 @@ class CompareView(QWidget):
 
         self._raw_image = _to_display_image(raw)
         self._restored_image = _to_display_image(restored)
+        self.setToolTip("")
         self._divider_position = 0.5
         self._rebuild_scaled_images()
         self.update()
@@ -46,6 +47,7 @@ class CompareView(QWidget):
 
         self._raw_image = _to_display_image(raw)
         self._restored_image = None
+        self.setToolTip("")
         self._divider_position = 0.5
         self._rebuild_scaled_images()
         self.update()

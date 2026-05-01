@@ -11,7 +11,7 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 ## 已知限制
 
 - Build verification 必須在 Windows 10 或 Windows 11 上執行。
-- Build machine 可以使用 Python 和 `pip`。
+- Build machine 使用 Python 3.12.8 64-bit 和 `pip`。
 - End-user smoke test 只能使用 release folder。
 - 不需要敏感的公司 FA image data。請使用 synthetic 或安全的 non-sensitive 2D grayscale image。
 - 第一版不要求在單次 model inference call 中途 cancel。
@@ -19,9 +19,11 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 ## Build Machine Prerequisites
 
 - Windows 10 或 Windows 11。
-- 與 `pyproject.toml` 相容的 Python。
+- Python 3.12.8 64-bit。
 - 可連網安裝 build dependencies。
 - 此 repository 的 fresh checkout 或下載副本。
+
+完整 build/package commands 請見 `docs/windows-build-and-package.md`。
 
 ## Build Steps
 
@@ -29,6 +31,8 @@ supported image，並取得預期 output；end user 不需要安裝 Python、`uv
 
 ```powershell
 cd path\to\Denoiser
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 .\scripts\build_windows.ps1
 ```
 

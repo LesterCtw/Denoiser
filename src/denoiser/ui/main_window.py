@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from denoiser.engine import DenoiseMode, OnnxDenoiser
 from denoiser.image_io import ImageFormatError, image_requires_patch_based, load_image
+from denoiser.ui.batch_restore_runner import BatchRestoreRunner
 from denoiser.ui.compare_view import CompareView
 from denoiser.ui.restore_task_runner import RestoreTaskRunner
 from denoiser.workflow import (
@@ -41,9 +42,8 @@ class MainWindow(QMainWindow):
         self._single_image_path: Path | None = None
         self._batch_folder_path: Path | None = None
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
-        self._batch_run: BatchRestoreRun | None = None
-        self._batch_cancel_requested = False
         self._restore_task_runner = RestoreTaskRunner()
+        self._batch_restore_runner = BatchRestoreRunner()
 
         self.setWindowTitle("Denoiser")
         self.resize(1280, 800)
@@ -323,52 +323,30 @@ class MainWindow(QMainWindow):
             self._set_status("Add a folder before starting Batch.")
             return
 
-        self._batch_run = BatchRestoreRun(
+        batch_run = BatchRestoreRun(
             self._batch_folder_path,
             self._selected_mode(),
             self._engine,
         )
-        self._batch_cancel_requested = False
         self._batch_list.clear()
-        self._update_batch_progress()
+        self._update_batch_progress(batch_run.completed_count, batch_run.total_count)
         self._set_processing_indicator_visible(True)
         self._set_status("Batch restoring...")
         self.start_batch_button.hide()
         self.cancel_batch_button.show()
         QApplication.processEvents()
-        QTimer.singleShot(0, self._restore_next_batch_file)
-
-    def _cancel_batch_restore(self) -> None:
-        self._batch_cancel_requested = True
-        self.cancel_batch_button.setEnabled(False)
-        self._set_status("Cancelling batch...")
-
-    def _restore_next_batch_file(self) -> None:
-        assert self._batch_run is not None
-        if self._batch_cancel_requested:
-            self._append_batch_file_results(self._batch_run.cancel_remaining())
-            self._update_batch_progress()
-            self._finish_batch_restore()
-            return
-
-        if self._batch_run.completed_count >= self._batch_run.total_count:
-            self._finish_batch_restore()
-            return
-
-        self._restore_task_runner.run(
-            self._batch_run.next_file_result,
-            self._finish_batch_file_restore,
+        self._batch_restore_runner.start(
+            batch_run,
+            self._append_batch_file_result,
+            self._update_batch_progress,
+            self._finish_batch_restore,
+            self._finish_failed_batch_restore,
         )
 
-    def _finish_batch_file_restore(self, file_result, exc: Exception | None) -> None:
-        assert self._batch_run is not None
-        if exc is not None:
-            self._finish_failed_batch_restore(exc)
-            return
-        assert file_result is not None
-        self._append_batch_file_result(file_result)
-        self._update_batch_progress()
-        QTimer.singleShot(0, self._restore_next_batch_file)
+    def _cancel_batch_restore(self) -> None:
+        self._batch_restore_runner.cancel()
+        self.cancel_batch_button.setEnabled(False)
+        self._set_status("Cancelling batch...")
 
     def _finish_failed_batch_restore(self, exc: Exception) -> None:
         self._set_status(f"Cannot restore batch: {exc}")
@@ -377,9 +355,7 @@ class MainWindow(QMainWindow):
         self.cancel_batch_button.hide()
         self.start_batch_button.show()
 
-    def _finish_batch_restore(self) -> None:
-        assert self._batch_run is not None
-        result = self._batch_run.result()
+    def _finish_batch_restore(self, result) -> None:
         self._set_status(
             "Batch complete: "
             f"{result.restored_count} restored, "
@@ -392,10 +368,6 @@ class MainWindow(QMainWindow):
         self.cancel_batch_button.hide()
         self.start_batch_button.show()
 
-    def _append_batch_file_results(self, file_results) -> None:
-        for file_result in file_results:
-            self._append_batch_file_result(file_result)
-
     def _append_batch_file_result(self, file_result) -> None:
         status = _batch_status_label(file_result.status)
         detail = (
@@ -407,11 +379,8 @@ class MainWindow(QMainWindow):
             f"{file_result.source_path.name} - {status}: {detail}"
         )
 
-    def _update_batch_progress(self) -> None:
-        assert self._batch_run is not None
-        self._set_batch_progress(
-            f"{self._batch_run.completed_count} of {self._batch_run.total_count} files"
-        )
+    def _update_batch_progress(self, completed_count: int, total_count: int) -> None:
+        self._set_batch_progress(f"{completed_count} of {total_count} files")
 
     def _set_batch_progress(self, message: str) -> None:
         self._batch_progress.setText(message)

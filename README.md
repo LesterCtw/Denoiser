@@ -13,6 +13,7 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Agent instructions：`AGENTS.md`
 - Domain context：`CONTEXT.md`
 - Architecture decisions：`docs/adr/`
+- Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
 ## 目前實作狀態
@@ -47,7 +48,9 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
   Single UI restore behavior、Single restore processing status transition、
   Single/Batch animated processing indicator behavior、
   Batch UI progress/status behavior、output naming、
-  before/after compare view interaction、1024x1024 first-drag rendering smoke check、
+  Batch restore runner orchestration、
+  before/after compare view interaction、Single preview stale tooltip regression、
+  1024x1024 first-drag rendering smoke check、
   denoised-folder rejection、
   unsupported-input rejection、multi-page TIFF rejection、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
@@ -92,16 +95,28 @@ runtime app。
 四個必要 ONNX model files 會追蹤在此 repository，因此 developer clone repo 後可以
 不另外下載 model 也能建立 release。
 
-## Packaging workflow
+## Windows build and packaging
 
-預期 build flow：
+Windows build target：
+
+- Windows 10/11
+- Python 3.12.8 64-bit
+- PowerShell
+- Standard `pip install` flow
+
+完整建置與打包步驟記錄在
+`docs/windows-build-and-package.md`。
+
+預期 package flow：
 
 1. Developer 在 Windows machine clone/download 此 repository。
-2. Developer 使用標準 `pip install` commands 安裝 dependencies。
-3. Developer 執行 Windows build script。
-4. Build script 產生 folder-style release，內含 `Denoiser.exe`、dependencies、
+2. Developer 使用 Python 3.12.8 建立 `.venv`。
+3. Developer 使用標準 `pip install` commands 安裝 dependencies。
+4. Developer 執行 `.\scripts\build_windows.ps1`。
+5. Build script 產生 folder-style release，內含 `Denoiser.exe`、dependencies、
    licenses、bundled model files。
-5. FA engineers 只收到 release folder，並執行 `Denoiser.exe`。
+6. Developer 將 `dist\Denoiser` 壓縮成 release zip。
+7. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
 
 End users 不需要 Python、`uv` 或 `pip`。
 
@@ -128,6 +143,7 @@ Denoiser/
   scripts/
     build_windows.ps1
   docs/
+    windows-build-and-package.md
     windows-release-verification.md
   src/
     denoiser/
@@ -140,15 +156,21 @@ Denoiser/
       workflow.py
       ui/
         __init__.py
+        batch_restore_runner.py
         compare_view.py
         main_window.py
+        restore_task_runner.py
   tests/
-    test_engine.py
-    test_image_io.py
+    test_batch_restore_runner.py
     test_batch_ui.py
     test_batch_workflow.py
+    test_compare_view.py
+    test_engine.py
+    test_image_io.py
+    test_restore_task_runner.py
     test_single_ui.py
     test_single_workflow.py
+    test_ui_theme.py
 ```
 
 ## Denoising modes

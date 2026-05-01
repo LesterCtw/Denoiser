@@ -41,6 +41,29 @@ def test_compare_view_sets_raw_preview_without_comparison_divider() -> None:
     assert not view.is_comparing()
 
 
+def test_compare_view_clears_stale_tooltip_when_showing_raw_preview() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = CompareView()
+    view.clear("Batch mode")
+
+    view.set_raw_image(np.full((100, 200), 120, dtype=np.float32))
+
+    assert view.toolTip() == ""
+
+
+def test_compare_view_clears_stale_tooltip_when_showing_comparison() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = CompareView()
+    view.clear("Batch mode")
+
+    view.set_images(
+        np.zeros((100, 200), dtype=np.float32),
+        np.ones((100, 200), dtype=np.float32),
+    )
+
+    assert view.toolTip() == ""
+
+
 def test_compare_view_renders_raw_on_left_and_restored_on_right_after_restore() -> None:
     app = QApplication.instance() or QApplication([])
     view = CompareView()

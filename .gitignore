@@ -16,6 +16,9 @@ env/
 *.egg-info/
 build/
 dist/
+release/
 *.spec
 
 .DS_Store
+
+sample_inputs/
