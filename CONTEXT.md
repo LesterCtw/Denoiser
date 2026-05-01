@@ -33,7 +33,7 @@ isolation, and a Single mode before/after compare view.
 
 - This is a single-context repo.
 - Issues are tracked in GitHub Issues for `LesterCtw/Denoiser`.
-- Architectural decisions will be recorded under `docs/adr/` when they become concrete.
+- Initial architectural decisions are recorded under `docs/adr/`.
 - First release targets Windows 10/11 laptops with CPU inference only.
 - The frontend will use PySide6.
 - The app will commit and bundle four `tk_r_em` ONNX models and run offline.

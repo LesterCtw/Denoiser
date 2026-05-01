@@ -16,6 +16,12 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
+Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
+
+- `docs/adr/0001-use-pyside6-for-windows-desktop-ui.md`
+- `docs/adr/0002-bundle-onnx-models-for-offline-cpu-runtime.md`
+- `docs/adr/0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md`
+
 ## 目前實作狀態
 
 已實作：
@@ -143,6 +149,10 @@ Denoiser/
   scripts/
     build_windows.ps1
   docs/
+    adr/
+      0001-use-pyside6-for-windows-desktop-ui.md
+      0002-bundle-onnx-models-for-offline-cpu-runtime.md
+      0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md
     windows-build-and-package.md
     windows-release-verification.md
   src/
