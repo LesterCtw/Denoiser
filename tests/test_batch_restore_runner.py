@@ -109,11 +109,11 @@ def test_batch_restore_runner_reports_unexpected_runner_failure() -> None:
     app = QApplication.instance() or QApplication([])
 
     class ExplodingRun:
-        completed_count = 0
-        total_count = 1
-
-        def next_file_result(self):
+        def next_step(self):
             raise RuntimeError("runner failed")
+
+        def cancel(self):
+            pass
 
     runner = BatchRestoreRunner()
     failures: list[Exception] = []

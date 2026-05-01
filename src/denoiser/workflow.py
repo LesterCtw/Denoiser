@@ -76,6 +76,14 @@ class BatchRestoreResult:
         )
 
 
+@dataclass(frozen=True)
+class BatchRestoreStep:
+    file_results: list[BatchFileResult]
+    completed_count: int
+    total_count: int
+    final_result: BatchRestoreResult | None = None
+
+
 def batch_input_paths(folder: Path) -> list[Path]:
     return sorted(path for path in Path(folder).iterdir() if path.is_file())
 
@@ -95,6 +103,7 @@ class BatchRestoreRun:
         self._paths = batch_input_paths(self.folder_path)
         self._index = 0
         self._file_results: list[BatchFileResult] = []
+        self._cancel_requested = False
 
     @property
     def total_count(self) -> int:
@@ -104,7 +113,23 @@ class BatchRestoreRun:
     def completed_count(self) -> int:
         return len(self._file_results)
 
-    def next_file_result(self) -> BatchFileResult | None:
+    def cancel(self) -> None:
+        self._cancel_requested = True
+
+    def next_step(self) -> BatchRestoreStep:
+        if self._cancel_requested:
+            return self._finish_cancelled_step()
+
+        file_result = self._next_file_result()
+        if file_result is None:
+            return self._finished_step([])
+
+        if self._index >= len(self._paths):
+            return self._finished_step([file_result])
+
+        return self._step([file_result])
+
+    def _next_file_result(self) -> BatchFileResult | None:
         if self._index >= len(self._paths):
             return None
 
@@ -114,7 +139,17 @@ class BatchRestoreRun:
         self._index += 1
         return result
 
-    def cancel_remaining(self) -> list[BatchFileResult]:
+    def result(self) -> BatchRestoreResult:
+        return BatchRestoreResult(
+            folder_path=self.folder_path,
+            mode=self.mode,
+            file_results=list(self._file_results),
+        )
+
+    def _finish_cancelled_step(self) -> BatchRestoreStep:
+        return self._finished_step(self._cancel_remaining())
+
+    def _cancel_remaining(self) -> list[BatchFileResult]:
         cancelled_results = [
             BatchFileResult(
                 source_path=path,
@@ -127,11 +162,19 @@ class BatchRestoreRun:
         self._index = len(self._paths)
         return cancelled_results
 
-    def result(self) -> BatchRestoreResult:
-        return BatchRestoreResult(
-            folder_path=self.folder_path,
-            mode=self.mode,
-            file_results=list(self._file_results),
+    def _finished_step(self, file_results: list[BatchFileResult]) -> BatchRestoreStep:
+        return self._step(file_results, final_result=self.result())
+
+    def _step(
+        self,
+        file_results: list[BatchFileResult],
+        final_result: BatchRestoreResult | None = None,
+    ) -> BatchRestoreStep:
+        return BatchRestoreStep(
+            file_results=file_results,
+            completed_count=self.completed_count,
+            total_count=self.total_count,
+            final_result=final_result,
         )
 
 
@@ -144,11 +187,11 @@ def restore_batch_folder(
     run = BatchRestoreRun(folder, mode, engine)
     while True:
         if cancel_requested is not None and cancel_requested():
-            run.cancel_remaining()
-            break
+            run.cancel()
 
-        if run.next_file_result() is None:
-            break
+        step = run.next_step()
+        if step.final_result is not None:
+            return step.final_result
 
     return run.result()
 

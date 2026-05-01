@@ -40,18 +40,26 @@ def test_batch_restore_run_exposes_each_file_result_as_it_advances(
 
     run = BatchRestoreRun(tmp_path, DenoiseMode.LRSEM, FakeEngine())
 
-    first_result = run.next_file_result()
-    second_result = run.next_file_result()
+    first_step = run.next_step()
+    second_step = run.next_step()
 
-    assert first_result is not None
+    assert len(first_step.file_results) == 1
+    first_result = first_step.file_results[0]
     assert first_result.status is BatchFileStatus.SKIPPED
     assert first_result.source_path == unsupported
-    assert second_result is not None
+    assert first_step.completed_count == 1
+    assert first_step.total_count == 2
+    assert first_step.final_result is None
+
+    assert len(second_step.file_results) == 1
+    second_result = second_step.file_results[0]
     assert second_result.status is BatchFileStatus.RESTORED
     assert second_result.source_path == supported
-    assert run.next_file_result() is None
+    assert second_step.completed_count == 2
+    assert second_step.total_count == 2
+    assert second_step.final_result is not None
 
-    final_result = run.result()
+    final_result = second_step.final_result
     assert final_result.total_count == 2
     assert final_result.restored_count == 1
     assert final_result.skipped_count == 1
@@ -72,10 +80,10 @@ def test_batch_restore_run_exposes_progress_counts(tmp_path: Path) -> None:
     assert run.total_count == 2
     assert run.completed_count == 0
 
-    run.next_file_result()
+    step = run.next_step()
 
-    assert run.total_count == 2
-    assert run.completed_count == 1
+    assert step.total_count == 2
+    assert step.completed_count == 1
 
 
 def test_batch_restore_run_cancels_remaining_files_without_processing_them(
@@ -94,18 +102,23 @@ def test_batch_restore_run_cancels_remaining_files_without_processing_them(
     engine = FakeEngine()
     run = BatchRestoreRun(tmp_path, DenoiseMode.LRSEM, engine)
 
-    first_result = run.next_file_result()
-    cancelled_results = run.cancel_remaining()
+    first_step = run.next_step()
+    run.cancel()
+    cancelled_step = run.next_step()
 
+    first_result = first_step.file_results[0]
     assert first_result is not None
     assert first_result.status is BatchFileStatus.RESTORED
+    cancelled_results = cancelled_step.file_results
     assert [result.status for result in cancelled_results] == [
         BatchFileStatus.CANCELLED,
         BatchFileStatus.CANCELLED,
     ]
+    assert cancelled_step.completed_count == 3
+    assert cancelled_step.total_count == 3
+    assert cancelled_step.final_result is not None
     assert engine.restore_count == 1
-    assert run.next_file_result() is None
-    assert run.result().cancelled_count == 2
+    assert cancelled_step.final_result.cancelled_count == 2
     assert not (tmp_path / "denoised_LRSEM" / "b_second.tif").exists()
 
 
@@ -125,16 +138,19 @@ def test_batch_restore_run_isolates_file_failures_and_keeps_advancing(
 
     run = BatchRestoreRun(tmp_path, DenoiseMode.HRSTEM, PartlyFailingEngine())
 
-    failed_result = run.next_file_result()
-    restored_result = run.next_file_result()
+    failed_step = run.next_step()
+    restored_step = run.next_step()
 
+    failed_result = failed_step.file_results[0]
     assert failed_result is not None
     assert failed_result.status is BatchFileStatus.FAILED
     assert "model crashed" in failed_result.message
+    restored_result = restored_step.file_results[0]
     assert restored_result is not None
     assert restored_result.status is BatchFileStatus.RESTORED
-    assert run.result().failed_count == 1
-    assert run.result().restored_count == 1
+    assert restored_step.final_result is not None
+    assert restored_step.final_result.failed_count == 1
+    assert restored_step.final_result.restored_count == 1
 
 
 def test_restore_batch_folder_restores_supported_files_with_shared_saving_rules(
