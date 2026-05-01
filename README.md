@@ -197,6 +197,8 @@ Layout：
 - 選圖後的 raw-only preview 不顯示 before/after slider。
 - Restore 後的 before/after slider 從 50% 開始。
 - Comparison 左側顯示 raw image，右側顯示 restored image。
+- Divider/handle 使用低白邊重量、高對比的 visual treatment，讓它在 dark、
+  light、mid-gray grayscale 區域仍可辨識。
 - 拖曳 divider 會移動 comparison position。
 - 點擊 image 任意位置會讓 slider 跳到該位置。
 - Preview display normalization 只允許用於螢幕顯示，不得影響 saved output files。
@@ -309,7 +311,7 @@ UI 應遵循 Apple-style design reference：
 
 對這個 desktop tool 的實務解讀：
 
-- Clean light UI。
+- Fixed dark UI，讓 image inspection 時周邊 chrome 保持低干擾。
 - Minimal chrome。
 - Blue 作為 main action color。
 - Controls 在適當處使用 rounded style。

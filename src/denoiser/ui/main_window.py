@@ -466,36 +466,36 @@ class MainWindow(QMainWindow):
 def _stylesheet() -> str:
     return """
     QMainWindow {
-        background: #ffffff;
-        color: #1d1d1f;
+        background: #111214;
+        color: #f2f3f5;
         font-family: "Segoe UI", "SF Pro Text", Arial, sans-serif;
         font-size: 14px;
     }
 
     #Sidebar {
-        background: #f5f5f7;
-        border-right: 1px solid #e0e0e0;
+        background: #181a1f;
+        border-right: 1px solid #2c3038;
     }
 
     #PreviewArea {
-        background: #ffffff;
+        background: #101114;
     }
 
     #Title {
-        color: #1d1d1f;
+        color: #f6f7f9;
         font-size: 28px;
         font-weight: 600;
     }
 
     #SectionLabel {
-        color: #7a7a7a;
+        color: #aeb4be;
         font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
     }
 
     #StatusText {
-        color: #7a7a7a;
+        color: #c2c7d0;
         font-size: 13px;
     }
 
@@ -504,68 +504,84 @@ def _stylesheet() -> str:
         max-height: 6px;
         border: none;
         border-radius: 3px;
-        background: #e0e0e0;
+        background: #2c3038;
     }
 
     #ProcessingIndicator::chunk {
         border-radius: 3px;
-        background: #0066cc;
+        background: #2f80ed;
     }
 
     QPushButton {
         min-height: 36px;
         padding: 8px 14px;
-        border: 1px solid #d2d2d7;
+        border: 1px solid #3a3f49;
         border-radius: 8px;
-        background: #ffffff;
-        color: #1d1d1f;
+        background: #23262d;
+        color: #eef1f5;
     }
 
     QPushButton:hover {
-        border-color: #b8b8bd;
+        border-color: #596170;
+        background: #2a2e36;
     }
 
     QPushButton:checked {
-        border-color: #0066cc;
-        color: #0066cc;
-        background: #eef6ff;
+        border-color: #2f80ed;
+        color: #ffffff;
+        background: #1d3f6e;
+    }
+
+    QPushButton:disabled {
+        border-color: #2b2f36;
+        background: #1b1d22;
+        color: #737b87;
     }
 
     #PrimaryButton {
         border: none;
         border-radius: 18px;
-        background: #0066cc;
+        background: #2f80ed;
         color: #ffffff;
         font-weight: 600;
     }
 
     #PrimaryButton:hover {
-        background: #0071e3;
+        background: #4a90f3;
+    }
+
+    #PrimaryButton:disabled {
+        background: #24415f;
+        color: #8fa7c5;
     }
 
     #CompareView {
-        border: 1px solid #e0e0e0;
+        border: 1px solid #2c3038;
         border-radius: 8px;
-        background: #fafafc;
-        color: #7a7a7a;
+        background: #15171b;
+        color: #aeb4be;
     }
 
     #BatchPanel {
-        background: #ffffff;
+        background: #15171b;
     }
 
     #BatchProgress {
-        color: #1d1d1f;
+        color: #f2f3f5;
         font-size: 17px;
         font-weight: 600;
     }
 
     #BatchList {
-        border: 1px solid #e0e0e0;
+        border: 1px solid #2c3038;
         border-radius: 8px;
-        background: #fafafc;
-        color: #1d1d1f;
+        background: #111318;
+        color: #e4e7ec;
         padding: 8px;
+    }
+
+    #BatchList::item {
+        padding: 4px;
     }
     """
 

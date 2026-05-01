@@ -59,6 +59,67 @@ def test_compare_view_renders_raw_on_left_and_restored_on_right_after_restore() 
     assert right_pixel.lightness() > 200
 
 
+def test_compare_view_divider_does_not_render_wide_white_rail() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = CompareView()
+    view.resize(800, 600)
+    pixels = np.full((100, 200), 127, dtype=np.float32)
+    pixels[0, 0] = 0
+    pixels[-1, -1] = 255
+    target = QImage(view.size(), QImage.Format.Format_RGB32)
+
+    view.set_images(pixels, pixels)
+    view.render(target)
+
+    divider_x = 400
+    sample_y = 180
+    near_white_pixels = [
+        QColor(target.pixel(x, sample_y)).lightness()
+        for x in range(divider_x - 4, divider_x + 5)
+        if QColor(target.pixel(x, sample_y)).lightness() > 245
+    ]
+    assert len(near_white_pixels) <= 1
+
+
+def test_compare_view_divider_stays_visible_on_dark_light_and_mid_gray_regions() -> None:
+    app = QApplication.instance() or QApplication([])
+    for background_value in (0, 127, 255):
+        view = CompareView()
+        view.resize(800, 600)
+        pixels = np.full((100, 200), background_value, dtype=np.float32)
+        pixels[0, 0] = 0
+        pixels[-1, -1] = 255
+        target = QImage(view.size(), QImage.Format.Format_RGB32)
+
+        view.set_images(pixels, pixels)
+        view.render(target)
+
+        divider_x = 400
+        sample_y = 180
+        background_lightness = QColor(target.pixel(divider_x - 20, sample_y)).lightness()
+        divider_lightnesses = [
+            QColor(target.pixel(x, sample_y)).lightness()
+            for x in range(divider_x - 3, divider_x + 4)
+        ]
+        assert max(abs(value - background_lightness) for value in divider_lightnesses) >= 50
+
+
+def test_compare_view_handle_is_not_filled_with_white() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = CompareView()
+    view.resize(800, 600)
+    pixels = np.full((100, 200), 127, dtype=np.float32)
+    pixels[0, 0] = 0
+    pixels[-1, -1] = 255
+    target = QImage(view.size(), QImage.Format.Format_RGB32)
+
+    view.set_images(pixels, pixels)
+    view.render(target)
+
+    handle_center = QColor(target.pixel(400, 300))
+    assert handle_center.lightness() < 220
+
+
 def test_compare_view_click_jumps_divider_to_clicked_position() -> None:
     app = QApplication.instance() or QApplication([])
     view = CompareView()
