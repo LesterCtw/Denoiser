@@ -57,11 +57,13 @@ def test_batch_ui_restores_folder_and_shows_progress_status(tmp_path: Path) -> N
     window.mode_button(DenoiseMode.HRSEM).click()
 
     window.start_batch_button.click()
+    assert window.processing_indicator_visible()
     process_events_until(app, lambda: window.status_text().startswith("Batch complete:"))
 
     output = tmp_path / "denoised_HRSEM" / "wafer.tif"
     assert output.is_file()
     assert "Batch complete: 1 restored, 0 failed, 1 skipped, 0 cancelled." in window.status_text()
+    assert not window.processing_indicator_visible()
     assert window.batch_progress_text() == "2 of 2 files"
     assert any("wafer.tif - Restored" in text for text in window.batch_status_texts())
     assert any("notes.txt - Skipped" in text for text in window.batch_status_texts())
@@ -91,6 +93,7 @@ def test_batch_ui_reports_failed_files_and_summary(tmp_path: Path) -> None:
     process_events_until(app, lambda: window.status_text().startswith("Batch complete:"))
 
     assert "Batch complete: 1 restored, 1 failed, 0 skipped, 0 cancelled." in window.status_text()
+    assert not window.processing_indicator_visible()
     assert any("a_fails.tif - Failed: model crashed" in text for text in window.batch_status_texts())
     assert any("b_later.tif - Restored" in text for text in window.batch_status_texts())
 
@@ -116,12 +119,14 @@ def test_batch_ui_can_cancel_remaining_files_between_restores(tmp_path: Path) ->
     window.start_batch_button.click()
     assert window.cancel_batch_button.isVisible()
     assert not window.start_batch_button.isVisible()
+    assert window.processing_indicator_visible()
 
     process_events_until(app, lambda: engine.restore_count == 1)
     window.cancel_batch_button.click()
     process_events_until(app, lambda: window.status_text().startswith("Batch complete:"))
 
     assert "Batch complete: 1 restored, 0 failed, 0 skipped, 2 cancelled." in window.status_text()
+    assert not window.processing_indicator_visible()
     assert engine.restore_count == 1
     assert any("b_second.tif - Cancelled: Not processed" in text for text in window.batch_status_texts())
     assert any("c_third.tif - Cancelled: Not processed" in text for text in window.batch_status_texts())

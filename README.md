@@ -25,9 +25,10 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Third-party notices 和 upstream `tk_r_em` GPL license copy。
 - 支援 whole-image 和 patch-based inference 的最小 CPU ONNX inference wrapper。
 - 使用 bundled ONNX models 的 Single-image restore workflow。
-- Single mode UI：image selection、mode buttons、Restore、自動儲存、成功/失敗狀態。
+- Single mode UI：image selection、mode buttons、Restore、自動儲存、
+  animated processing indicator、success/failure 狀態。
 - Batch mode UI：folder selection、共用 mode buttons、Start Batch、progress、
-  可捲動的 per-file status list。
+  animated processing indicator、可捲動的 per-file status list。
 - Batch cancellation between files、per-file failure isolation，以及 final
   restored/failed/skipped/cancelled summary counts。
 - Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
@@ -43,8 +44,11 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
   safe text metadata；unsupported metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
 - Focused tests：model mapping、missing model handling、whole-image inference、
   patch-based inference、Single restore workflow、Batch restore workflow、
-  Single UI restore behavior、Batch UI progress/status behavior、output naming、
-  before/after compare view interaction、denoised-folder rejection、
+  Single UI restore behavior、Single restore processing status transition、
+  Single/Batch animated processing indicator behavior、
+  Batch UI progress/status behavior、output naming、
+  before/after compare view interaction、1024x1024 first-drag rendering smoke check、
+  denoised-folder rejection、
   unsupported-input rejection、multi-page TIFF rejection、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
   RGB/RGBA-to-grayscale conversion、overwrite behavior、uint16 TIFF clipping、
@@ -277,6 +281,9 @@ App 應自動選擇 inference strategy：
   - `batch_size=2`
 
 Large images 不會只因尺寸被 blocked，但 UI 應警告 processing 可能需要數分鐘。
+
+Single 和 Batch restore processing 期間，左側會顯示 animated indeterminate
+processing indicator。這個 indicator 只代表 app 正在處理，不代表百分比或剩餘時間。
 
 Cancellation：
 

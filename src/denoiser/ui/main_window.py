@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Thread
+from typing import Callable
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QFileDialog,
     QFrame,
@@ -13,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QMainWindow,
+    QProgressBar,
     QPushButton,
     QSizePolicy,
     QStackedWidget,
@@ -29,6 +34,7 @@ from denoiser.workflow import (
     BatchRestoreResult,
     RestoreEngine,
     batch_input_paths,
+    failed_batch_file,
     restore_batch_file,
     restore_single_image,
 )
@@ -46,6 +52,7 @@ class MainWindow(QMainWindow):
         self._batch_results: list[BatchFileResult] = []
         self._batch_index = 0
         self._batch_cancel_requested = False
+        self._restore_thread: Thread | None = None
 
         self.setWindowTitle("Denoiser")
         self.resize(1280, 800)
@@ -105,6 +112,9 @@ class MainWindow(QMainWindow):
             self._batch_list.item(index).text()
             for index in range(self._batch_list.count())
         ]
+
+    def processing_indicator_visible(self) -> bool:
+        return not self._processing_indicator.isHidden()
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QFrame()
@@ -192,6 +202,13 @@ class MainWindow(QMainWindow):
 
         layout.addStretch(1)
 
+        self._processing_indicator = QProgressBar()
+        self._processing_indicator.setObjectName("ProcessingIndicator")
+        self._processing_indicator.setRange(0, 0)
+        self._processing_indicator.setTextVisible(False)
+        self._processing_indicator.hide()
+        layout.addWidget(self._processing_indicator)
+
         self._status = QLabel("Ready")
         self._status.setObjectName("StatusText")
         self._status.setWordWrap(True)
@@ -278,17 +295,37 @@ class MainWindow(QMainWindow):
             return
 
         mode = self._selected_mode()
-        self.restore_button.setEnabled(False)
+        path = self._single_image_path
+        self._set_single_restore_controls_enabled(False)
+        self._set_processing_indicator_visible(True)
         self._set_status("Restoring...")
-        try:
-            result = restore_single_image(self._single_image_path, mode, self._engine)
-        except Exception as exc:
+        QApplication.processEvents()
+        QTimer.singleShot(0, lambda: self._start_single_restore(path, mode))
+
+    def _start_single_restore(self, path: Path, mode: DenoiseMode) -> None:
+        self._run_restore_task(
+            lambda: restore_single_image(path, mode, self._engine),
+            self._finish_single_restore,
+        )
+
+    def _finish_single_restore(self, result, exc: Exception | None) -> None:
+        if exc is not None:
             self._set_status(f"Cannot restore: {exc}")
         else:
+            assert result is not None
             self._set_status(f"Saved: {result.output_path}")
             self._compare_view.set_images(result.raw_pixels, result.restored_pixels)
-        finally:
-            self.restore_button.setEnabled(True)
+
+        self._set_processing_indicator_visible(False)
+        self._set_single_restore_controls_enabled(True)
+
+    def _set_single_restore_controls_enabled(self, enabled: bool) -> None:
+        self._single_button.setEnabled(enabled)
+        self._batch_button.setEnabled(enabled)
+        self._single_controls.setEnabled(enabled)
+        for button in self._mode_buttons.values():
+            button.setEnabled(enabled)
+        self.restore_button.setEnabled(enabled)
 
     def _restore_batch_folder(self) -> None:
         if self._batch_folder_path is None:
@@ -302,9 +339,11 @@ class MainWindow(QMainWindow):
         self._batch_cancel_requested = False
         self._batch_list.clear()
         self._set_batch_progress(f"0 of {len(self._batch_paths)} files")
+        self._set_processing_indicator_visible(True)
         self._set_status("Batch restoring...")
         self.start_batch_button.hide()
         self.cancel_batch_button.show()
+        QApplication.processEvents()
         QTimer.singleShot(0, self._restore_next_batch_file)
 
     def _cancel_batch_restore(self) -> None:
@@ -323,7 +362,15 @@ class MainWindow(QMainWindow):
             return
 
         path = self._batch_paths[self._batch_index]
-        file_result = restore_batch_file(path, self._batch_mode, self._engine)
+        self._run_restore_task(
+            lambda: restore_batch_file(path, self._batch_mode, self._engine),
+            self._finish_batch_file_restore,
+        )
+
+    def _finish_batch_file_restore(self, file_result, exc: Exception | None) -> None:
+        if exc is not None:
+            file_result = failed_batch_file(self._batch_paths[self._batch_index], exc)
+        assert file_result is not None
         self._batch_results.append(file_result)
         self._append_batch_file_result(file_result)
         self._batch_index += 1
@@ -356,6 +403,7 @@ class MainWindow(QMainWindow):
             f"{result.skipped_count} skipped, "
             f"{result.cancelled_count} cancelled."
         )
+        self._set_processing_indicator_visible(False)
         self.cancel_batch_button.setEnabled(True)
         self.cancel_batch_button.hide()
         self.start_batch_button.show()
@@ -376,6 +424,43 @@ class MainWindow(QMainWindow):
 
     def _set_status(self, message: str) -> None:
         self._status.setText(message)
+
+    def _set_processing_indicator_visible(self, visible: bool) -> None:
+        self._processing_indicator.setVisible(visible)
+
+    def _run_restore_task(
+        self,
+        task: Callable[[], object],
+        on_finished: Callable[[object | None, Exception | None], None],
+    ) -> None:
+        result_queue: Queue[tuple[object | None, Exception | None]] = Queue(maxsize=1)
+
+        def run_task() -> None:
+            try:
+                result_queue.put((task(), None))
+            except Exception as exc:
+                result_queue.put((None, exc))
+
+        thread = Thread(target=run_task, daemon=True)
+        self._restore_thread = thread
+        thread.start()
+        QTimer.singleShot(10, lambda: self._poll_restore_task(result_queue, on_finished, thread))
+
+    def _poll_restore_task(
+        self,
+        result_queue: Queue[tuple[object | None, Exception | None]],
+        on_finished: Callable[[object | None, Exception | None], None],
+        thread: Thread,
+    ) -> None:
+        try:
+            result, exc = result_queue.get_nowait()
+        except Empty:
+            QTimer.singleShot(10, lambda: self._poll_restore_task(result_queue, on_finished, thread))
+            return
+
+        if self._restore_thread is thread:
+            self._restore_thread = None
+        on_finished(result, exc)
 
 
 def _stylesheet() -> str:
@@ -412,6 +497,19 @@ def _stylesheet() -> str:
     #StatusText {
         color: #7a7a7a;
         font-size: 13px;
+    }
+
+    #ProcessingIndicator {
+        min-height: 6px;
+        max-height: 6px;
+        border: none;
+        border-radius: 3px;
+        background: #e0e0e0;
+    }
+
+    #ProcessingIndicator::chunk {
+        border-radius: 3px;
+        background: #0066cc;
     }
 
     QPushButton {

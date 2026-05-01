@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import numpy as np
 from PySide6.QtCore import QPoint, Qt
@@ -80,6 +81,29 @@ def test_compare_view_drag_updates_divider_position() -> None:
     QTest.mouseRelease(view, Qt.MouseButton.LeftButton, pos=QPoint(600, 300))
 
     assert view.divider_position() == 0.75
+
+
+def test_compare_view_first_drag_rendering_stays_responsive_for_1024_image() -> None:
+    app = QApplication.instance() or QApplication([])
+    view = CompareView()
+    view.resize(800, 600)
+    raw = np.zeros((1024, 1024), dtype=np.float32)
+    restored = np.tile(np.linspace(0, 255, 1024, dtype=np.float32), (1024, 1))
+    target = QImage(view.size(), QImage.Format.Format_RGB32)
+
+    view.set_images(raw, restored)
+    start = time.perf_counter()
+    QTest.mousePress(view, Qt.MouseButton.LeftButton, pos=QPoint(200, 300))
+    for x in range(208, 550, 8):
+        QTest.mouseMove(view, QPoint(x, 300))
+        view.render(target)
+    QTest.mouseMove(view, QPoint(550, 300))
+    view.render(target)
+    QTest.mouseRelease(view, Qt.MouseButton.LeftButton, pos=QPoint(600, 300))
+    elapsed = time.perf_counter() - start
+
+    assert view.divider_position() == 0.75
+    assert elapsed < 0.02
 
 
 def test_compare_view_renders_loaded_images() -> None:
