@@ -48,7 +48,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   thread 執行 preview inspection，讓 UI 可以先顯示 loading/status，不必等 image
   load 和 large-image 判斷完成。
 - 第一版支援格式的 image I/O boundary。
-- 使用 `denoised_MODE` folders 的 output path rules。
+- 使用獨立 output path rules module 管理 `denoised_MODE` folders、output suffix、
+  overwrite target，以及 `denoised_*` input rejection。
 - Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
   stretching。
 - Large-image patch-based restore path，預設 `patch_size=512`、`stride=256`、
@@ -175,6 +176,7 @@ Denoiser/
       engine.py
       image_io.py
       models.py
+      output_paths.py
       single_image_inspection.py
       workflow.py
       ui/
@@ -191,6 +193,7 @@ Denoiser/
     test_compare_view.py
     test_engine.py
     test_image_io.py
+    test_output_paths.py
     test_restore_task_runner.py
     test_single_image_inspection.py
     test_single_ui.py

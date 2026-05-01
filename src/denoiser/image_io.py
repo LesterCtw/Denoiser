@@ -17,10 +17,8 @@ import tifffile
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
-from denoiser.engine import (
-    DenoiseMode,
-    OUTPUT_FOLDERS,
-)
+from denoiser.engine import DenoiseMode
+from denoiser.output_paths import is_inside_denoised_folder, output_path_for_input
 
 
 SUPPORTED_INPUT_EXTENSIONS = {
@@ -83,22 +81,6 @@ class ImageData:
 
 def is_supported_input(path: Path) -> bool:
     return path.suffix.lower() in SUPPORTED_INPUT_EXTENSIONS
-
-
-def is_inside_denoised_folder(path: Path) -> bool:
-    return any(part.lower().startswith("denoised_") for part in path.parts)
-
-
-def output_suffix_for_input(path: Path) -> str:
-    suffix = path.suffix.lower()
-    if suffix in {".jpg", ".jpeg", ".dm3", ".dm4"}:
-        return ".tif"
-    return suffix
-
-
-def output_path_for_input(path: Path, mode: DenoiseMode) -> Path:
-    output_dir = path.parent / OUTPUT_FOLDERS[mode]
-    return output_dir / f"{path.stem}{output_suffix_for_input(path)}"
 
 
 def image_dimensions(path: Path) -> tuple[int, int]:

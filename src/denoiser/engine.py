@@ -38,11 +38,6 @@ class DenoiseSession(Protocol):
     def run(self, input_tensor: np.ndarray) -> np.ndarray: ...
 
 
-OUTPUT_FOLDERS: dict[DenoiseMode, str] = {
-    mode: f"denoised_{mode.value}" for mode in DenoiseMode
-}
-
-
 def should_use_patch_based(height: int, width: int, settings: InferenceSettings) -> bool:
     """Return whether an image should use patch-based inference."""
 
