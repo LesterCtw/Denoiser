@@ -61,6 +61,7 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   Single UI restore behavior、Single restore processing status transition、
   Single/Batch animated processing indicator behavior、
   readable Single/Batch status output、Batch UI progress/status behavior、
+  unclipped Batch per-file status row labels、
   Single image inspection behavior、output naming、Batch restore runner orchestration、
   before/after compare view interaction、Single preview stale tooltip regression、
   1024x1024 first-drag rendering smoke check、

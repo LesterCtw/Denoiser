@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QListWidget
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from denoiser.models import DenoiseMode
+from denoiser.workflow import BatchFileResult, BatchFileStatus
 from denoiser.ui.compare_view import CompareView
 from denoiser.ui.main_window import MainWindow
 
@@ -134,19 +135,28 @@ def test_batch_ui_can_cancel_remaining_files_between_restores(tmp_path: Path) ->
     assert not window.cancel_batch_button.isVisible()
 
 
-def test_batch_ui_status_badge_is_not_clipped(tmp_path: Path) -> None:
+def test_batch_ui_status_row_labels_are_not_clipped(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
-    source = tmp_path / "unsupported notes with a long filename.json"
-    source.write_text("skip me")
 
     window = MainWindow(engine=object())
     window.resize(1280, 800)
     window.show()
     window.show_batch_mode()
-    window.set_batch_folder_path(tmp_path)
-
-    window.start_batch_button.click()
-    process_events_until(app, lambda: window.status_text().startswith("Batch complete:"))
+    window._append_batch_file_result(
+        BatchFileResult(
+            source_path=tmp_path / "launch_phase4_overlay_uat.py",
+            status=BatchFileStatus.SKIPPED,
+            message="Unsupported file format: .py",
+        )
+    )
+    window._append_batch_file_result(
+        BatchFileResult(
+            source_path=tmp_path / "phase4_bad_slice_stack 1.json",
+            status=BatchFileStatus.SKIPPED,
+            message="Unsupported file format: .json",
+        )
+    )
+    app.processEvents()
 
     batch_list = window.findChild(QListWidget, "BatchList")
     assert batch_list is not None
@@ -154,5 +164,8 @@ def test_batch_ui_status_badge_is_not_clipped(tmp_path: Path) -> None:
     first_row = batch_list.itemWidget(first_item)
     assert first_row is not None
     badge = first_row.findChild(QLabel, "BatchStatusSkipped")
+    detail = first_row.findChild(QLabel, "BatchFileDetail")
     assert badge is not None
+    assert detail is not None
     assert badge.geometry().height() >= badge.sizeHint().height()
+    assert detail.geometry().height() >= detail.minimumSizeHint().height()

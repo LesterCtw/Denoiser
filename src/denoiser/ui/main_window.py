@@ -481,9 +481,9 @@ class MainWindow(QMainWindow):
             status_kind=file_result.status,
             detail=_readable_batch_detail(file_result.status, detail),
         )
-        item.setSizeHint(row.sizeHint())
         self._batch_list.addItem(item)
         self._batch_list.setItemWidget(item, row)
+        item.setSizeHint(row.sizeHint())
 
     def _update_batch_progress(self, completed_count: int, total_count: int) -> None:
         self._set_batch_progress(f"{completed_count} of {total_count} files")
