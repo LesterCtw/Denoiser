@@ -111,7 +111,7 @@ python -m pytest
 Expected:
 
 ```text
-74 passed
+76 passed
 ```
 
 The exact runtime may vary by machine. The important result is that all tests pass.

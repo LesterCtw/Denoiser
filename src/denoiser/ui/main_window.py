@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from denoiser.app_icon import load_application_icon
 from denoiser.engine import DenoiseMode, OnnxDenoiser
-from denoiser.image_io import ImageFormatError, image_requires_patch_based, load_image
+from denoiser.single_image_inspection import inspect_single_image
 from denoiser.ui.batch_restore_runner import BatchRestoreRunner
 from denoiser.ui.compare_view import CompareView
 from denoiser.ui.restore_task_runner import RestoreTaskRunner
@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self._single_image_path: Path | None = None
         self._batch_folder_path: Path | None = None
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
+        self._preview_task_runner = RestoreTaskRunner()
         self._restore_task_runner = RestoreTaskRunner()
         self._batch_restore_runner = BatchRestoreRunner()
         self._status_plain_text = "Ready"
@@ -68,31 +69,61 @@ class MainWindow(QMainWindow):
 
     def set_single_image_path(self, path: Path) -> None:
         self._single_image_path = Path(path)
-        try:
-            image = load_image(self._single_image_path)
-        except ImageFormatError as exc:
-            self._compare_view.clear(str(exc))
-        else:
-            self._compare_view.set_raw_image(image.pixels)
-
+        self._compare_view.clear("Loading preview...")
         rows = [
             ("File", self._single_image_path.name),
             ("Note", "Existing outputs will be overwritten."),
         ]
         plain_text = (
-            f"Selected: {self._single_image_path.name}\n"
+            f"Loading preview: {self._single_image_path.name}\n"
             "Existing outputs will be overwritten."
         )
-        try:
-            if image_requires_patch_based(self._single_image_path):
-                rows.append(("Warning", "Large images may take several minutes."))
-                plain_text += "\nLarge images may take several minutes."
-        except ImageFormatError:
-            pass
+        self._set_status(
+            "Loading preview...",
+            rows=rows,
+            tooltip=str(self._single_image_path),
+            plain_text=plain_text,
+        )
+        self._preview_task_runner.run(
+            lambda: inspect_single_image(path),
+            lambda result, exc: self._finish_single_image_preview(path, result, exc),
+        )
+
+    def _finish_single_image_preview(
+        self,
+        path: Path,
+        result,
+        exc: Exception | None,
+    ) -> None:
+        if self._single_image_path != Path(path):
+            return
+
+        rows = [
+            ("File", Path(path).name),
+            ("Note", "Existing outputs will be overwritten."),
+        ]
+        plain_text = f"Selected: {Path(path).name}\nExisting outputs will be overwritten."
+
+        if exc is not None:
+            self._compare_view.clear(str(exc))
+            self._set_status(
+                "Cannot preview image",
+                rows=[("File", Path(path).name), ("Error", str(exc))],
+                tooltip=str(path),
+                plain_text=f"Cannot preview: {exc}",
+            )
+            return
+
+        assert result is not None
+        if result.requires_patch_based_restore:
+            rows.append(("Warning", "Large images may take several minutes."))
+            plain_text += "\nLarge images may take several minutes."
+
+        self._compare_view.set_raw_image(result.preview_pixels)
         self._set_status(
             "Selected image",
             rows=rows,
-            tooltip=str(self._single_image_path),
+            tooltip=str(path),
             plain_text=plain_text,
         )
 

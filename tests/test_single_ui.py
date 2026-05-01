@@ -95,6 +95,7 @@ def test_single_ui_shows_overwrite_message_before_restore(tmp_path: Path) -> Non
 
     assert "Existing outputs will be overwritten." in window.status_text()
     assert window.status_tooltip() == str(source)
+    assert window.status_text().startswith("Loading preview:")
 
 
 def test_single_ui_previews_raw_image_after_selection(tmp_path: Path) -> None:
@@ -107,6 +108,8 @@ def test_single_ui_previews_raw_image_after_selection(tmp_path: Path) -> None:
 
     compare_view = window.findChild(CompareView, "CompareView")
     assert compare_view is not None
+    assert not compare_view.has_images()
+    process_events_until(app, compare_view.has_images)
     assert compare_view.has_images()
     assert not compare_view.is_comparing()
 
@@ -119,6 +122,11 @@ def test_single_ui_warns_when_selected_image_is_large(tmp_path: Path) -> None:
     window = MainWindow(engine=object())
     window.set_single_image_path(source)
 
+    assert window.status_text().startswith("Loading preview:")
+    process_events_until(
+        app,
+        lambda: "Large images may take several minutes." in window.status_text(),
+    )
     assert "Large images may take several minutes." in window.status_text()
 
 

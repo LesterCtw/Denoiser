@@ -44,6 +44,9 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 - Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
   before/after compare view、50% 初始 divider、drag interaction、click-to-jump
   interaction。
+- Single mode image selection：使用 Single image inspection module 在 background
+  thread 執行 preview inspection，讓 UI 可以先顯示 loading/status，不必等 image
+  load 和 large-image 判斷完成。
 - 第一版支援格式的 image I/O boundary。
 - 使用 `denoised_MODE` folders 的 output path rules。
 - Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
@@ -56,8 +59,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   patch-based inference、Single restore workflow、Batch restore workflow、
   Single UI restore behavior、Single restore processing status transition、
   Single/Batch animated processing indicator behavior、
-  readable Single/Batch status output、Batch UI progress/status behavior、output naming、
-  Batch restore runner orchestration、
+  readable Single/Batch status output、Batch UI progress/status behavior、
+  Single image inspection behavior、output naming、Batch restore runner orchestration、
   before/after compare view interaction、Single preview stale tooltip regression、
   1024x1024 first-drag rendering smoke check、
   denoised-folder rejection、
@@ -172,6 +175,7 @@ Denoiser/
       engine.py
       image_io.py
       models.py
+      single_image_inspection.py
       workflow.py
       ui/
         __init__.py
@@ -188,6 +192,7 @@ Denoiser/
     test_engine.py
     test_image_io.py
     test_restore_task_runner.py
+    test_single_image_inspection.py
     test_single_ui.py
     test_single_workflow.py
     test_ui_theme.py

@@ -11,7 +11,8 @@ license notices, a tested image I/O boundary for first-release output naming
 and dtype/range preservation rules, a minimal ONNX inference wrapper with
 whole-image and patch-based restore paths, a working Single-image restore flow,
 the first Batch folder restore flow with cancellation and per-file failure
-isolation, and a Single mode before/after compare view.
+isolation, a Single mode before/after compare view, and background Single image
+inspection so image selection can update the UI before preview loading finishes.
 
 ## Glossary
 
@@ -28,6 +29,9 @@ isolation, and a Single mode before/after compare view.
   with Denoiser, including the mapping from each denoising mode to its required
   model filename and the missing-model checks used before release or runtime
   inference.
+- **Single image inspection**: The Single mode selection step that validates an
+  input image, prepares raw preview pixels, and reports whether large-image
+  patch-based restore will be needed.
 
 ## Current assumptions
 

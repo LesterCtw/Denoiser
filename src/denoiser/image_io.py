@@ -19,9 +19,7 @@ from PIL.PngImagePlugin import PngInfo
 
 from denoiser.engine import (
     DenoiseMode,
-    InferenceSettings,
     OUTPUT_FOLDERS,
-    should_use_patch_based,
 )
 
 
@@ -101,14 +99,6 @@ def output_suffix_for_input(path: Path) -> str:
 def output_path_for_input(path: Path, mode: DenoiseMode) -> Path:
     output_dir = path.parent / OUTPUT_FOLDERS[mode]
     return output_dir / f"{path.stem}{output_suffix_for_input(path)}"
-
-
-def image_requires_patch_based(
-    path: Path,
-    settings: InferenceSettings | None = None,
-) -> bool:
-    height, width = image_dimensions(path)
-    return should_use_patch_based(height, width, settings or InferenceSettings())
 
 
 def image_dimensions(path: Path) -> tuple[int, int]:
