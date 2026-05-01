@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QProgressBar,
     QPushButton,
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
         self._restore_task_runner = RestoreTaskRunner()
         self._batch_restore_runner = BatchRestoreRunner()
+        self._status_plain_text = "Ready"
 
         self.setWindowTitle("Denoiser")
         self.resize(1280, 800)
@@ -69,22 +71,35 @@ class MainWindow(QMainWindow):
         else:
             self._compare_view.set_raw_image(image.pixels)
 
-        message = f"Selected: {self._single_image_path.name}\nExisting outputs will be overwritten."
+        rows = [
+            ("File", self._single_image_path.name),
+            ("Note", "Existing outputs will be overwritten."),
+        ]
+        plain_text = (
+            f"Selected: {self._single_image_path.name}\n"
+            "Existing outputs will be overwritten."
+        )
         try:
             if image_requires_patch_based(self._single_image_path):
-                message += "\nLarge images may take several minutes."
+                rows.append(("Warning", "Large images may take several minutes."))
+                plain_text += "\nLarge images may take several minutes."
         except ImageFormatError:
             pass
-        self._set_status(message, tooltip=str(self._single_image_path))
+        self._set_status(
+            "Selected image",
+            rows=rows,
+            tooltip=str(self._single_image_path),
+            plain_text=plain_text,
+        )
 
     def mode_button(self, mode: DenoiseMode) -> QPushButton:
         return self._mode_buttons[mode]
 
     def status_text(self) -> str:
-        return self._status.text()
+        return self._status_plain_text
 
     def status_tooltip(self) -> str:
-        return self._status.toolTip()
+        return self._status_card.toolTip()
 
     def show_batch_mode(self) -> None:
         self._batch_button.click()
@@ -97,8 +112,10 @@ class MainWindow(QMainWindow):
         self._batch_list.clear()
         self._set_batch_progress("0 of 0 files")
         self._set_status(
-            f"Batch folder: {self._batch_folder_path.name}",
+            "Batch folder",
+            rows=[("Folder", self._batch_folder_path.name)],
             tooltip=str(self._batch_folder_path),
+            plain_text=f"Batch folder: {self._batch_folder_path.name}",
         )
 
     def batch_progress_text(self) -> str:
@@ -206,11 +223,25 @@ class MainWindow(QMainWindow):
         self._processing_indicator.hide()
         layout.addWidget(self._processing_indicator)
 
-        self._status = QLabel("Ready")
-        self._status.setObjectName("StatusText")
-        self._status.setWordWrap(True)
-        self._status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self._status)
+        self._status_card = QFrame()
+        self._status_card.setObjectName("StatusCard")
+        status_layout = QVBoxLayout(self._status_card)
+        status_layout.setContentsMargins(12, 12, 12, 12)
+        status_layout.setSpacing(6)
+
+        self._status_title = QLabel("Ready")
+        self._status_title.setObjectName("StatusTitle")
+        self._status_title.setWordWrap(True)
+        status_layout.addWidget(self._status_title)
+
+        self._status_details = QLabel("")
+        self._status_details.setObjectName("StatusDetails")
+        self._status_details.setWordWrap(True)
+        self._status_details.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._status_details.hide()
+        status_layout.addWidget(self._status_details)
+
+        layout.addWidget(self._status_card)
 
         return sidebar
 
@@ -312,8 +343,16 @@ class MainWindow(QMainWindow):
         else:
             assert result is not None
             self._set_status(
-                f"Saved: {result.output_path.name}\nFolder: {result.output_path.parent.name}",
+                "Saved output",
+                rows=[
+                    ("File", result.output_path.name),
+                    ("Folder", result.output_path.parent.name),
+                ],
                 tooltip=str(result.output_path),
+                plain_text=(
+                    f"Saved: {result.output_path.name}\n"
+                    f"Folder: {result.output_path.parent.name}"
+                ),
             )
             self._compare_view.set_images(result.raw_pixels, result.restored_pixels)
 
@@ -366,12 +405,21 @@ class MainWindow(QMainWindow):
         self.start_batch_button.show()
 
     def _finish_batch_restore(self, result) -> None:
-        self._set_status(
-            "Batch complete: "
+        summary = (
             f"{result.restored_count} restored, "
             f"{result.failed_count} failed, "
             f"{result.skipped_count} skipped, "
             f"{result.cancelled_count} cancelled."
+        )
+        self._set_status(
+            "Batch complete",
+            rows=[
+                ("Restored", str(result.restored_count)),
+                ("Failed", str(result.failed_count)),
+                ("Skipped", str(result.skipped_count)),
+                ("Cancelled", str(result.cancelled_count)),
+            ],
+            plain_text=f"Batch complete: {summary}",
         )
         self._set_processing_indicator_visible(False)
         self.cancel_batch_button.setEnabled(True)
@@ -385,9 +433,16 @@ class MainWindow(QMainWindow):
             if file_result.output_path is not None
             else file_result.message
         )
-        self._batch_list.addItem(
-            f"{file_result.source_path.name} - {status}: {detail}"
+        item = QListWidgetItem(f"{file_result.source_path.name} - {status}: {detail}")
+        row = _batch_result_row(
+            filename=file_result.source_path.name,
+            status=status,
+            status_kind=file_result.status,
+            detail=_readable_batch_detail(file_result.status, detail),
         )
+        item.setSizeHint(row.sizeHint())
+        self._batch_list.addItem(item)
+        self._batch_list.setItemWidget(item, row)
 
     def _update_batch_progress(self, completed_count: int, total_count: int) -> None:
         self._set_batch_progress(f"{completed_count} of {total_count} files")
@@ -395,9 +450,24 @@ class MainWindow(QMainWindow):
     def _set_batch_progress(self, message: str) -> None:
         self._batch_progress.setText(message)
 
-    def _set_status(self, message: str, tooltip: str | None = None) -> None:
-        self._status.setText(message)
-        self._status.setToolTip(tooltip or "")
+    def _set_status(
+        self,
+        title: str,
+        rows: list[tuple[str, str]] | None = None,
+        tooltip: str | None = None,
+        plain_text: str | None = None,
+    ) -> None:
+        self._status_plain_text = plain_text or title
+        self._status_title.setText(title)
+        if rows:
+            self._status_details.setText(
+                "\n".join(f"{label}: {value}" for label, value in rows)
+            )
+            self._status_details.show()
+        else:
+            self._status_details.clear()
+            self._status_details.hide()
+        self._status_card.setToolTip(tooltip or "")
 
     def _set_processing_indicator_visible(self, visible: bool) -> None:
         self._processing_indicator.setVisible(visible)
@@ -433,14 +503,23 @@ def _stylesheet() -> str:
         text-transform: uppercase;
     }
 
-    #StatusText {
-        color: #d8dde6;
-        font-size: 14px;
-        font-weight: 500;
-        padding: 10px 12px;
+    #StatusCard {
         border: 1px solid #303641;
         border-radius: 8px;
         background: #12151a;
+    }
+
+    #StatusTitle {
+        color: #f2f4f8;
+        font-size: 15px;
+        font-weight: 650;
+    }
+
+    #StatusDetails {
+        color: #c9d0db;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 135%;
     }
 
     #ProcessingIndicator {
@@ -522,12 +601,62 @@ def _stylesheet() -> str:
         background: #111318;
         color: #e4e7ec;
         font-size: 15px;
-        padding: 10px;
+        padding: 8px;
     }
 
     #BatchList::item {
-        min-height: 28px;
-        padding: 7px 8px;
+        border: none;
+        margin: 0 0 8px 0;
+        padding: 0;
+    }
+
+    #BatchResultItem {
+        border: 1px solid #2a303a;
+        border-radius: 8px;
+        background: #151820;
+    }
+
+    #BatchFileName {
+        color: #f1f4f8;
+        font-size: 15px;
+        font-weight: 650;
+    }
+
+    #BatchFileDetail {
+        color: #aeb7c4;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    #BatchStatusRestored,
+    #BatchStatusSkipped,
+    #BatchStatusFailed,
+    #BatchStatusCancelled {
+        min-width: 76px;
+        padding: 4px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 650;
+    }
+
+    #BatchStatusRestored {
+        color: #d8f5e3;
+        background: #1d5b38;
+    }
+
+    #BatchStatusSkipped {
+        color: #d8dde6;
+        background: #38404d;
+    }
+
+    #BatchStatusFailed {
+        color: #ffe0e0;
+        background: #743030;
+    }
+
+    #BatchStatusCancelled {
+        color: #ffe8bd;
+        background: #6b4b18;
     }
     """
 
@@ -544,3 +673,59 @@ def _batch_status_label(status: BatchFileStatus) -> str:
 
 def _short_path_label(path: Path) -> str:
     return f"{path.parent.name}/{path.name}"
+
+
+def _readable_batch_detail(status: BatchFileStatus, detail: str) -> str:
+    if status is BatchFileStatus.RESTORED:
+        return f"Saved to {detail}"
+    if detail.startswith("Unsupported file format:"):
+        return detail.replace("Unsupported file format:", "Unsupported format", 1)
+    if detail.startswith("Multi-page TIFF files are not supported."):
+        return "Multi-page TIFF not supported. Use a single 2D image."
+    return detail
+
+
+def _batch_result_row(
+    filename: str,
+    status: str,
+    status_kind: BatchFileStatus,
+    detail: str,
+) -> QWidget:
+    row = QFrame()
+    row.setObjectName("BatchResultItem")
+    layout = QVBoxLayout(row)
+    layout.setContentsMargins(14, 12, 14, 12)
+    layout.setSpacing(8)
+
+    header = QHBoxLayout()
+    header.setContentsMargins(0, 0, 0, 0)
+    header.setSpacing(10)
+
+    filename_label = QLabel(filename)
+    filename_label.setObjectName("BatchFileName")
+    filename_label.setWordWrap(True)
+    header.addWidget(filename_label, 1)
+
+    badge = QLabel(status)
+    badge.setObjectName(_batch_status_badge_name(status_kind))
+    badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    header.addWidget(badge)
+
+    layout.addLayout(header)
+
+    detail_label = QLabel(detail)
+    detail_label.setObjectName("BatchFileDetail")
+    detail_label.setWordWrap(True)
+    layout.addWidget(detail_label)
+
+    return row
+
+
+def _batch_status_badge_name(status: BatchFileStatus) -> str:
+    if status is BatchFileStatus.RESTORED:
+        return "BatchStatusRestored"
+    if status is BatchFileStatus.FAILED:
+        return "BatchStatusFailed"
+    if status is BatchFileStatus.CANCELLED:
+        return "BatchStatusCancelled"
+    return "BatchStatusSkipped"
