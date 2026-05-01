@@ -633,6 +633,7 @@ def _stylesheet() -> str:
     #BatchStatusFailed,
     #BatchStatusCancelled {
         min-width: 76px;
+        min-height: 24px;
         padding: 4px 8px;
         border-radius: 10px;
         font-size: 12px;

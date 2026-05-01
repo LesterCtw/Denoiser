@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel, QListWidget
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -132,3 +132,27 @@ def test_batch_ui_can_cancel_remaining_files_between_restores(tmp_path: Path) ->
     assert any("c_third.tif - Cancelled: Not processed" in text for text in window.batch_status_texts())
     assert window.start_batch_button.isVisible()
     assert not window.cancel_batch_button.isVisible()
+
+
+def test_batch_ui_status_badge_is_not_clipped(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    source = tmp_path / "unsupported notes with a long filename.json"
+    source.write_text("skip me")
+
+    window = MainWindow(engine=object())
+    window.resize(1280, 800)
+    window.show()
+    window.show_batch_mode()
+    window.set_batch_folder_path(tmp_path)
+
+    window.start_batch_button.click()
+    process_events_until(app, lambda: window.status_text().startswith("Batch complete:"))
+
+    batch_list = window.findChild(QListWidget, "BatchList")
+    assert batch_list is not None
+    first_item = batch_list.item(0)
+    first_row = batch_list.itemWidget(first_item)
+    assert first_row is not None
+    badge = first_row.findChild(QLabel, "BatchStatusSkipped")
+    assert badge is not None
+    assert badge.geometry().height() >= badge.sizeHint().height()
