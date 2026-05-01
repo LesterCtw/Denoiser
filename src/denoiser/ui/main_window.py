@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from queue import Empty, Queue
-from threading import Thread
-from typing import Callable
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -28,6 +25,7 @@ from PySide6.QtWidgets import (
 from denoiser.engine import DenoiseMode, OnnxDenoiser
 from denoiser.image_io import ImageFormatError, image_requires_patch_based, load_image
 from denoiser.ui.compare_view import CompareView
+from denoiser.ui.restore_task_runner import RestoreTaskRunner
 from denoiser.workflow import (
     BatchFileStatus,
     BatchRestoreRun,
@@ -45,7 +43,7 @@ class MainWindow(QMainWindow):
         self._mode_buttons: dict[DenoiseMode, QPushButton] = {}
         self._batch_run: BatchRestoreRun | None = None
         self._batch_cancel_requested = False
-        self._restore_thread: Thread | None = None
+        self._restore_task_runner = RestoreTaskRunner()
 
         self.setWindowTitle("Denoiser")
         self.resize(1280, 800)
@@ -296,7 +294,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, lambda: self._start_single_restore(path, mode))
 
     def _start_single_restore(self, path: Path, mode: DenoiseMode) -> None:
-        self._run_restore_task(
+        self._restore_task_runner.run(
             lambda: restore_single_image(path, mode, self._engine),
             self._finish_single_restore,
         )
@@ -357,7 +355,7 @@ class MainWindow(QMainWindow):
             self._finish_batch_restore()
             return
 
-        self._run_restore_task(
+        self._restore_task_runner.run(
             self._batch_run.next_file_result,
             self._finish_batch_file_restore,
         )
@@ -423,41 +421,6 @@ class MainWindow(QMainWindow):
 
     def _set_processing_indicator_visible(self, visible: bool) -> None:
         self._processing_indicator.setVisible(visible)
-
-    def _run_restore_task(
-        self,
-        task: Callable[[], object],
-        on_finished: Callable[[object | None, Exception | None], None],
-    ) -> None:
-        result_queue: Queue[tuple[object | None, Exception | None]] = Queue(maxsize=1)
-
-        def run_task() -> None:
-            try:
-                result_queue.put((task(), None))
-            except Exception as exc:
-                result_queue.put((None, exc))
-
-        thread = Thread(target=run_task, daemon=True)
-        self._restore_thread = thread
-        thread.start()
-        QTimer.singleShot(10, lambda: self._poll_restore_task(result_queue, on_finished, thread))
-
-    def _poll_restore_task(
-        self,
-        result_queue: Queue[tuple[object | None, Exception | None]],
-        on_finished: Callable[[object | None, Exception | None], None],
-        thread: Thread,
-    ) -> None:
-        try:
-            result, exc = result_queue.get_nowait()
-        except Empty:
-            QTimer.singleShot(10, lambda: self._poll_restore_task(result_queue, on_finished, thread))
-            return
-
-        if self._restore_thread is thread:
-            self._restore_thread = None
-        on_finished(result, exc)
-
 
 def _stylesheet() -> str:
     return """
