@@ -13,7 +13,7 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Agent instructions：`AGENTS.md`
 - Domain context：`CONTEXT.md`
 - Architecture decisions：`docs/adr/`
-- App icon：`assets/icons/denoiser_icon.ico`
+- App icon：`assets/icons/denoiser_icon.ico`；使用 Aligner / Denoiser / Measurer 共用的深色圓角 icon style。
 - Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
