@@ -33,10 +33,11 @@ from denoiser.models import (
 )
 from denoiser.single_image_inspection import inspect_single_image
 from denoiser.ui.batch_restore_runner import BatchRestoreRunner
+from denoiser.ui.batch_result_row import batch_result_list_entry
 from denoiser.ui.compare_view import CompareView
 from denoiser.ui.restore_task_runner import RestoreTaskRunner
+from denoiser.ui.theme import main_window_stylesheet
 from denoiser.workflow import (
-    BatchFileStatus,
     BatchRestoreRun,
     RestoreEngine,
     restore_single_image,
@@ -71,7 +72,7 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._build_preview_area(), 1)
 
         self.setCentralWidget(root)
-        self.setStyleSheet(_stylesheet())
+        self.setStyleSheet(main_window_stylesheet())
 
     def set_single_image_path(self, path: Path) -> None:
         self._single_image_path = Path(path)
@@ -468,22 +469,11 @@ class MainWindow(QMainWindow):
         self.start_batch_button.show()
 
     def _append_batch_file_result(self, file_result) -> None:
-        status = _batch_status_label(file_result.status)
-        detail = (
-            _short_path_label(file_result.output_path)
-            if file_result.output_path is not None
-            else file_result.message
-        )
-        item = QListWidgetItem(f"{file_result.source_path.name} - {status}: {detail}")
-        row = _batch_result_row(
-            filename=file_result.source_path.name,
-            status=status,
-            status_kind=file_result.status,
-            detail=_readable_batch_detail(file_result.status, detail),
-        )
+        entry = batch_result_list_entry(file_result)
+        item = QListWidgetItem(entry.item_text)
         self._batch_list.addItem(item)
-        self._batch_list.setItemWidget(item, row)
-        item.setSizeHint(row.sizeHint())
+        self._batch_list.setItemWidget(item, entry.row_widget)
+        item.setSizeHint(entry.row_widget.sizeHint())
 
     def _update_batch_progress(self, completed_count: int, total_count: int) -> None:
         self._set_batch_progress(f"{completed_count} of {total_count} files")
@@ -512,262 +502,3 @@ class MainWindow(QMainWindow):
 
     def _set_processing_indicator_visible(self, visible: bool) -> None:
         self._processing_indicator.setVisible(visible)
-
-def _stylesheet() -> str:
-    return """
-    QMainWindow {
-        background: #111214;
-        color: #f2f3f5;
-        font-family: "Segoe UI", "SF Pro Text", Arial, sans-serif;
-        font-size: 14px;
-    }
-
-    #Sidebar {
-        background: #181a1f;
-        border-right: 1px solid #2c3038;
-    }
-
-    #PreviewArea {
-        background: #101114;
-    }
-
-    #Title {
-        color: #f6f7f9;
-        font-size: 28px;
-        font-weight: 600;
-    }
-
-    #SectionLabel {
-        color: #aeb4be;
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-
-    #StatusCard {
-        border: 1px solid #303641;
-        border-radius: 8px;
-        background: #12151a;
-    }
-
-    #StatusTitle {
-        color: #f2f4f8;
-        font-size: 15px;
-        font-weight: 650;
-    }
-
-    #StatusDetails {
-        color: #c9d0db;
-        font-size: 13px;
-        font-weight: 500;
-        line-height: 135%;
-    }
-
-    #ProcessingIndicator {
-        min-height: 6px;
-        max-height: 6px;
-        border: none;
-        border-radius: 3px;
-        background: #2c3038;
-    }
-
-    #ProcessingIndicator::chunk {
-        border-radius: 3px;
-        background: #2f80ed;
-    }
-
-    QPushButton {
-        min-height: 36px;
-        padding: 8px 14px;
-        border: 1px solid #3a3f49;
-        border-radius: 8px;
-        background: #23262d;
-        color: #eef1f5;
-    }
-
-    QPushButton:hover {
-        border-color: #596170;
-        background: #2a2e36;
-    }
-
-    QPushButton:checked {
-        border-color: #2f80ed;
-        color: #ffffff;
-        background: #1d3f6e;
-    }
-
-    QPushButton:disabled {
-        border-color: #2b2f36;
-        background: #1b1d22;
-        color: #737b87;
-    }
-
-    #PrimaryButton {
-        border: none;
-        border-radius: 18px;
-        background: #2f80ed;
-        color: #ffffff;
-        font-weight: 600;
-    }
-
-    #PrimaryButton:hover {
-        background: #4a90f3;
-    }
-
-    #PrimaryButton:disabled {
-        background: #24415f;
-        color: #8fa7c5;
-    }
-
-    #CompareView {
-        border: 1px solid #2c3038;
-        border-radius: 8px;
-        background: #15171b;
-        color: #aeb4be;
-    }
-
-    #BatchPanel {
-        background: #15171b;
-    }
-
-    #BatchProgress {
-        color: #f2f3f5;
-        font-size: 20px;
-        font-weight: 600;
-    }
-
-    #BatchList {
-        border: 1px solid #2c3038;
-        border-radius: 8px;
-        background: #111318;
-        color: #e4e7ec;
-        font-size: 15px;
-        padding: 8px;
-    }
-
-    #BatchList::item {
-        border: none;
-        margin: 0 0 8px 0;
-        padding: 0;
-    }
-
-    #BatchResultItem {
-        border: 1px solid #2a303a;
-        border-radius: 8px;
-        background: #151820;
-    }
-
-    #BatchFileName {
-        color: #f1f4f8;
-        font-size: 15px;
-        font-weight: 650;
-    }
-
-    #BatchFileDetail {
-        color: #aeb7c4;
-        font-size: 13px;
-        font-weight: 500;
-    }
-
-    #BatchStatusRestored,
-    #BatchStatusSkipped,
-    #BatchStatusFailed,
-    #BatchStatusCancelled {
-        min-width: 76px;
-        min-height: 24px;
-        padding: 4px 8px;
-        border-radius: 10px;
-        font-size: 12px;
-        font-weight: 650;
-    }
-
-    #BatchStatusRestored {
-        color: #d8f5e3;
-        background: #1d5b38;
-    }
-
-    #BatchStatusSkipped {
-        color: #d8dde6;
-        background: #38404d;
-    }
-
-    #BatchStatusFailed {
-        color: #ffe0e0;
-        background: #743030;
-    }
-
-    #BatchStatusCancelled {
-        color: #ffe8bd;
-        background: #6b4b18;
-    }
-    """
-
-
-def _batch_status_label(status: BatchFileStatus) -> str:
-    if status is BatchFileStatus.RESTORED:
-        return "Restored"
-    if status is BatchFileStatus.FAILED:
-        return "Failed"
-    if status is BatchFileStatus.CANCELLED:
-        return "Cancelled"
-    return "Skipped"
-
-
-def _short_path_label(path: Path) -> str:
-    return f"{path.parent.name}/{path.name}"
-
-
-def _readable_batch_detail(status: BatchFileStatus, detail: str) -> str:
-    if status is BatchFileStatus.RESTORED:
-        return f"Saved to {detail}"
-    if detail.startswith("Unsupported file format:"):
-        return detail.replace("Unsupported file format:", "Unsupported format", 1)
-    if detail.startswith("Multi-page TIFF files are not supported."):
-        return "Multi-page TIFF not supported. Use a single 2D image."
-    return detail
-
-
-def _batch_result_row(
-    filename: str,
-    status: str,
-    status_kind: BatchFileStatus,
-    detail: str,
-) -> QWidget:
-    row = QFrame()
-    row.setObjectName("BatchResultItem")
-    layout = QVBoxLayout(row)
-    layout.setContentsMargins(14, 12, 14, 12)
-    layout.setSpacing(8)
-
-    header = QHBoxLayout()
-    header.setContentsMargins(0, 0, 0, 0)
-    header.setSpacing(10)
-
-    filename_label = QLabel(filename)
-    filename_label.setObjectName("BatchFileName")
-    filename_label.setWordWrap(True)
-    header.addWidget(filename_label, 1)
-
-    badge = QLabel(status)
-    badge.setObjectName(_batch_status_badge_name(status_kind))
-    badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    header.addWidget(badge)
-
-    layout.addLayout(header)
-
-    detail_label = QLabel(detail)
-    detail_label.setObjectName("BatchFileDetail")
-    detail_label.setWordWrap(True)
-    layout.addWidget(detail_label)
-
-    return row
-
-
-def _batch_status_badge_name(status: BatchFileStatus) -> str:
-    if status is BatchFileStatus.RESTORED:
-        return "BatchStatusRestored"
-    if status is BatchFileStatus.FAILED:
-        return "BatchStatusFailed"
-    if status is BatchFileStatus.CANCELLED:
-        return "BatchStatusCancelled"
-    return "BatchStatusSkipped"

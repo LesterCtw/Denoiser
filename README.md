@@ -39,6 +39,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   animated processing indicator、success/failure 狀態。
 - Batch mode UI：folder selection、共用 mode buttons、Start Batch、progress、
   animated processing indicator、可捲動的 per-file status list。
+- Batch mode status row rendering 已集中在 dedicated UI module，讓 per-file
+  status label、detail text、badge object names 的規則有單一維護位置。
 - Batch cancellation between files、per-file failure isolation，以及 final
   restored/failed/skipped/cancelled summary counts。
 - Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
@@ -68,7 +70,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   denoised-folder rejection、
   unsupported-input rejection、multi-page TIFF rejection、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
-  RGB/RGBA-to-grayscale conversion、overwrite behavior、uint16 TIFF clipping、
+  Batch result row formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
+  uint16 TIFF clipping、
   conservative TIFF/PNG metadata preservation。
 
 尚未實作：
@@ -185,11 +188,14 @@ Denoiser/
       ui/
         __init__.py
         batch_restore_runner.py
+        batch_result_row.py
         compare_view.py
         main_window.py
         restore_task_runner.py
+        theme.py
   tests/
     test_batch_restore_runner.py
+    test_batch_result_row.py
     test_batch_ui.py
     test_batch_workflow.py
     test_app_icon.py
