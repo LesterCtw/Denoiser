@@ -9,14 +9,19 @@
 ```text
 dist\Denoiser\
   Denoiser.exe
-  ...
-  assets\
-  models\
-  licenses\
+  _internal\
+    ...
+    assets\
+    models\
+    licenses\
 ```
 
 FA engineer 只需要收到整個 `dist\Denoiser` folder，不需要安裝 Python、`uv`、`pip`，
 也不需要 internet connection。
+
+PyInstaller 6 的 onedir build 預設會把 bundled data 和 runtime dependencies 放在
+`_internal`。這是正常 layout，不是 build failure。不要只複製 `Denoiser.exe`；必須保留
+整個 `dist\Denoiser` folder。
 
 ## Build Machine Requirements
 
@@ -169,7 +174,7 @@ python -m pytest
 Expected: all tests pass.
 
 ```text
-77 passed
+85 passed
 ```
 
 The exact runtime and test count may vary as coverage grows. The important result is
@@ -195,13 +200,13 @@ Confirm these files exist:
 
 ```powershell
 Test-Path .\dist\Denoiser\Denoiser.exe
-Test-Path .\dist\Denoiser\assets\icons\denoiser_icon.ico
-Test-Path .\dist\Denoiser\models\sfr_hrstem.onnx
-Test-Path .\dist\Denoiser\models\sfr_lrstem.onnx
-Test-Path .\dist\Denoiser\models\sfr_hrsem.onnx
-Test-Path .\dist\Denoiser\models\sfr_lrsem.onnx
-Test-Path .\dist\Denoiser\licenses\THIRD_PARTY_NOTICES.md
-Test-Path .\dist\Denoiser\licenses\tk_r_em_LICENSE.txt
+Test-Path .\dist\Denoiser\_internal\assets\icons\denoiser_icon.ico
+Test-Path .\dist\Denoiser\_internal\models\sfr_hrstem.onnx
+Test-Path .\dist\Denoiser\_internal\models\sfr_lrstem.onnx
+Test-Path .\dist\Denoiser\_internal\models\sfr_hrsem.onnx
+Test-Path .\dist\Denoiser\_internal\models\sfr_lrsem.onnx
+Test-Path .\dist\Denoiser\_internal\licenses\THIRD_PARTY_NOTICES.md
+Test-Path .\dist\Denoiser\_internal\licenses\tk_r_em_LICENSE.txt
 ```
 
 Each command should print:
@@ -219,8 +224,8 @@ New-Item -ItemType Directory -Force .\release
 Compress-Archive -Path .\dist\Denoiser -DestinationPath .\release\Denoiser-windows-python-3.12.8.zip -Force
 ```
 
-The zip should contain the `Denoiser` folder, including `Denoiser.exe`, app icon asset,
-model files, runtime dependencies, and license notices.
+The zip should contain the `Denoiser` folder, including `Denoiser.exe`, `_internal`,
+app icon asset, model files, runtime dependencies, and license notices.
 
 Do not commit `dist`, `build`, `release`, `.venv`, or generated zip files. They are local
 build artifacts.

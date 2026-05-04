@@ -31,6 +31,9 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 - PySide6 application entry point 和基本 main window。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
+- Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
+  onedir release 中的 bundled `assets`、`models`、`licenses` 會從 `_internal`
+  讀取。
 - 四個必要 ONNX model files 已放在 `models/`。
 - Third-party notices 和 upstream `tk_r_em` GPL license copy。
 - 支援 whole-image 和 patch-based inference 的最小 CPU ONNX inference wrapper。
@@ -135,7 +138,8 @@ Windows build target：
    package install failure。
 5. Developer 執行 `.\scripts\build_windows.ps1`。
 6. Build script 產生 folder-style release，內含帶有 app icon 的 `Denoiser.exe`、
-   dependencies、licenses、bundled model files、bundled icon asset。
+   `_internal` runtime folder、dependencies、licenses、bundled model files、
+   bundled icon asset。
 7. Developer 將 `dist\Denoiser` 壓縮成 release zip。
 8. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
 

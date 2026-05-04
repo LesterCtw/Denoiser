@@ -11,10 +11,12 @@ from denoiser.engine import (
 )
 from denoiser.models import (
     DenoiseMode,
+    default_models_dir,
     default_denoise_mode,
     missing_model_paths,
     mode_label_for,
     model_tag_for,
+    model_path_for,
     output_folder_for_mode,
     supported_denoise_modes,
 )
@@ -60,6 +62,16 @@ def test_missing_model_paths_reports_missing_required_models(tmp_path) -> None:
         "sfr_hrsem.onnx",
         "sfr_lrsem.onnx",
     }
+
+
+def test_default_model_paths_use_pyinstaller_resource_root(monkeypatch, tmp_path) -> None:
+    bundle_root = tmp_path / "_internal"
+    models_dir = bundle_root / "models"
+    models_dir.mkdir(parents=True)
+    monkeypatch.setattr("sys._MEIPASS", str(bundle_root), raising=False)
+
+    assert default_models_dir() == models_dir
+    assert model_path_for(DenoiseMode.HRSTEM) == models_dir / "sfr_hrstem.onnx"
 
 
 def test_small_images_use_whole_image_inference() -> None:

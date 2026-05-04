@@ -48,9 +48,9 @@ class OnnxDenoiser:
         settings: InferenceSettings | None = None,
     ) -> None:
         if models_dir is None:
-            from denoiser.models import MODELS_DIR
+            from denoiser.models import default_models_dir
 
-            models_dir = MODELS_DIR
+            models_dir = default_models_dir()
 
         self._models_dir = Path(models_dir)
         self._session_factory = session_factory or _OrtSession

@@ -79,17 +79,19 @@ python -m pytest
 Pass criteria：
 
 - `Denoiser.exe` 存在。
-- Release folder 包含 PyInstaller 產生的 runtime dependency files。
+- Release folder 包含 `_internal` folder。PyInstaller 6 onedir build 預設會把 runtime
+  dependency files 和 bundled data 放在這裡。
 - Release folder 包含 app icon asset：
-  - `assets\icons\denoiser_icon.ico`
+  - `_internal\assets\icons\denoiser_icon.ico`
 - Release folder 包含以下 model files：
-  - `models\sfr_hrstem.onnx`
-  - `models\sfr_lrstem.onnx`
-  - `models\sfr_hrsem.onnx`
-  - `models\sfr_lrsem.onnx`
+  - `_internal\models\sfr_hrstem.onnx`
+  - `_internal\models\sfr_lrstem.onnx`
+  - `_internal\models\sfr_hrsem.onnx`
+  - `_internal\models\sfr_lrsem.onnx`
 - Release folder 包含 license notices：
-  - `licenses\THIRD_PARTY_NOTICES.md`
-  - `licenses\tk_r_em_LICENSE.txt`
+  - `_internal\licenses\THIRD_PARTY_NOTICES.md`
+  - `_internal\licenses\tk_r_em_LICENSE.txt`
+- 不要只複製 `Denoiser.exe`。End-user launch test 必須使用整個 `dist\Denoiser` folder。
 
 ## End-User Launch Test
 

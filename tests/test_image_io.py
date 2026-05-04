@@ -12,6 +12,7 @@ from denoiser.image_io import (
     ImageData,
     ImageFormatError,
     SourceKind,
+    image_dimensions,
     load_image,
     prepare_output_pixels,
     save_restored_image,
@@ -160,3 +161,35 @@ def test_rgb_input_converts_to_grayscale(tmp_path: Path) -> None:
     assert image.pixels.shape == (1, 1)
     assert image.source_dtype == np.dtype(np.uint8)
     assert image.pixels[0, 0] == 76.0
+
+
+def test_load_image_rejects_single_page_stack_like_tiff(tmp_path: Path) -> None:
+    source = tmp_path / "stack_like.tif"
+    tifffile.imwrite(
+        source,
+        np.zeros((2, 3, 4), dtype=np.uint8),
+        metadata={"axes": "ZYX"},
+    )
+
+    try:
+        load_image(source)
+    except ImageFormatError as exc:
+        assert "Stack-like TIFF" in str(exc)
+    else:
+        raise AssertionError("Expected ImageFormatError")
+
+
+def test_image_dimensions_rejects_single_page_stack_like_tiff(tmp_path: Path) -> None:
+    source = tmp_path / "stack_like.tif"
+    tifffile.imwrite(
+        source,
+        np.zeros((2, 3, 4), dtype=np.uint8),
+        metadata={"axes": "ZYX"},
+    )
+
+    try:
+        image_dimensions(source)
+    except ImageFormatError as exc:
+        assert "Stack-like TIFF" in str(exc)
+    else:
+        raise AssertionError("Expected ImageFormatError")
