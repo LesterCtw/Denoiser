@@ -21,3 +21,13 @@ def test_application_icon_loads_in_qt() -> None:
 
     assert not icon.isNull()
     assert icon.availableSizes()
+
+
+def test_application_icon_path_uses_pyinstaller_resource_root(monkeypatch, tmp_path) -> None:
+    bundle_root = tmp_path / "_internal"
+    icon_path = bundle_root / APP_ICON_RELATIVE_PATH
+    icon_path.parent.mkdir(parents=True)
+    icon_path.write_bytes(b"icon")
+    monkeypatch.setattr("sys._MEIPASS", str(bundle_root), raising=False)
+
+    assert application_icon_path() == icon_path

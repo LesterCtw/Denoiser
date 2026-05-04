@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
+from denoiser.runtime_paths import resource_path
 
-MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
+MODELS_DIR = resource_path("models")
 
 
 class DenoiseMode(str, Enum):
@@ -77,11 +78,17 @@ def output_folder_for_mode(mode: DenoiseMode) -> str:
     return _MODEL_BY_MODE[mode].output_folder
 
 
-def model_path_for(mode: DenoiseMode, models_dir: Path = MODELS_DIR) -> Path:
+def default_models_dir() -> Path:
+    return resource_path("models")
+
+
+def model_path_for(mode: DenoiseMode, models_dir: Path | None = None) -> Path:
+    if models_dir is None:
+        models_dir = default_models_dir()
     return models_dir / f"{model_tag_for(mode)}.onnx"
 
 
-def missing_model_paths(models_dir: Path = MODELS_DIR) -> list[Path]:
+def missing_model_paths(models_dir: Path | None = None) -> list[Path]:
     return [
         model_path_for(mode, models_dir)
         for mode in supported_denoise_modes()
