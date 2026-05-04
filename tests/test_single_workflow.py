@@ -48,7 +48,11 @@ def test_restore_single_image_rejects_multi_page_tiff_before_engine(tmp_path: Pa
 
 def test_restore_single_image_rejects_stack_like_tiff_before_engine(tmp_path: Path) -> None:
     source = tmp_path / "stack_like.tif"
-    tifffile.imwrite(source, np.zeros((1, 1, 3, 4), dtype=np.uint8))
+    tifffile.imwrite(
+        source,
+        np.zeros((2, 3, 4), dtype=np.uint8),
+        metadata={"axes": "ZYX"},
+    )
 
     class EngineShouldNotRun:
         def restore(self, pixels, mode):
