@@ -90,6 +90,10 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
   `rsciio.utils._distributed` module，以及 RosettaSciIO dependency 中可能不會被 app
   直接 import 的 `pint`、`yaml`，避免 PyInstaller frozen app 讀取 `.dm3` / `.dm4`
   時漏掉 runtime dependency。
+- Windows release dependency flow 已改為 NiceGUI native window stack：release build
+  安裝 `nicegui` 和 `pywebview`，不再要求 PySide6 作為 release app dependency；
+  PySide6 只保留給舊 frontend 測試與開發支援。Build script 也會用
+  `--collect-data nicegui` 包含 NiceGUI frontend package data。
 - 提供 `scripts/check_dm3_pyinstaller_imports.py` 作為 DM3/DM4 PyInstaller import-chain
   probe；它會建立一個最小 frozen executable 並執行，確認 RosettaSciIO DM reader 的必要
   imports 在 frozen app 中可載入。

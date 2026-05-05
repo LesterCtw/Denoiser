@@ -5,8 +5,9 @@
 
 ## 目標
 
-FA engineer 可以收到一個 release folder，在 offline 狀態執行 `Denoiser.exe`，還原一張小型
-supported image，並取得預期 output；end user 不需要安裝 Python、`uv` 或 `pip`。
+FA engineer 可以收到一個 release folder，在 offline 狀態執行 NiceGUI native window
+版 `Denoiser.exe`，還原 Single image 和 Batch folder，並取得預期 output；end user
+不需要安裝 Python、`uv` 或 `pip`。
 
 ## 已知限制
 
@@ -51,16 +52,17 @@ cd path\to\Denoiser
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+python -m pip install "nicegui>=2.0"
 python -m pip install "numpy>=1.26"
 python -m pip install "onnxruntime>=1.21"
 python -m pip install "Pillow>=10"
-python -m pip install "PySide6>=6.7"
+python -m pip install "pywebview>=5.0"
 python -m pip install "rosettasciio>=0.13"
 python -m pip install "tifffile>=2024.8.10"
 python -m pip install "pyinstaller>=6.10"
-python -m pip install "pytest>=8"
 python -m pip install -e . --no-deps
 python .\scripts\check_dm3_pyinstaller_imports.py
+python -m pip install -e ".[dev]"
 python -m pytest
 .\scripts\build_windows.ps1
 ```
@@ -68,13 +70,19 @@ python -m pytest
 預期結果：
 
 - Dependency install 每一步都完成；如果失敗，可以知道是哪個 package 失敗。
+- Release dependency flow 不安裝 PySide6；PySide6 只會透過 dev extras 支援舊 frontend
+  tests。
 - `python .\scripts\check_dm3_pyinstaller_imports.py` 完成，且輸出包含
   `file_reader=rsciio.digitalmicrograph._api.file_reader` 和
   `memmap_distributed=rsciio.utils._distributed.memmap_distributed`。
 - `python -m pytest` 全部通過。
 - `dist\Denoiser\Denoiser.exe` 存在。
 - Script 完成且沒有 errors。
+- Build dependency flow 安裝 `nicegui` 和 `pywebview`，且不要求 PySide6 作為 NiceGUI
+  release app dependency。
 - Build script 使用 `assets\icons\denoiser_icon.ico` 作為 `Denoiser.exe` icon。
+- Build script 包含 `--collect-data nicegui`，讓 NiceGUI frontend package data 進入
+  frozen app。
 - Build script 包含 `--hidden-import rsciio.utils._distributed`、`--hidden-import pint`
   和 `--hidden-import yaml`，讓 frozen app 可載入 RosettaSciIO DM3/DM4 reader 的
   lazy-loaded dependencies。
@@ -114,7 +122,7 @@ Pass criteria：
 Pass criteria：
 
 - App launches，不要求 Python、`uv`、`pip` 或 internet access。
-- Main window 開啟。
+- NiceGUI native window startup 成功，main window 開啟。
 - Window/taskbar 顯示 Denoiser app icon。
 - UI 保持可讀，並符合既有 clean desktop direction。
 
@@ -124,7 +132,7 @@ Pass criteria：
 
 步驟：
 
-1. 在 Single mode 點擊 `Open Image`。
+1. 在 Single mode 點擊 `Open Image`，確認 Single image dialog 開啟。
 2. 選擇 smoke-test image。
 3. 選擇一個 mode，例如 `HRSTEM`。
 4. 點擊 `Restore`。
@@ -137,14 +145,36 @@ Pass criteria：
 - Restore 過程不需要 network access。
 - Before/after compare view 在 restore 後更新。
 
+## Batch Restore Smoke Test
+
+準備一個 test folder，內含至少一張 safe, non-sensitive 2D grayscale supported image。
+可以額外放一個 unsupported text file，用來確認 skipped row 顯示。
+
+步驟：
+
+1. 切換到 Batch mode。
+2. 點擊 `Add Folder`，確認 Batch folder dialog 開啟。
+3. 選擇 test folder。
+4. 選擇一個 mode，例如 `LRSEM`。
+5. 點擊 `Start Batch`。
+
+Pass criteria：
+
+- App 顯示 Batch progress。
+- Supported images 會在正確的 `denoised_MODE` folder 產生 output。
+- Unsupported files, if present, 顯示 skipped row。
+- Final summary 顯示 restored、failed、skipped、cancelled counts。
+- Batch restore 過程不需要 network access。
+
 ## Offline Retest
 
-在 machine 沒有 network connection 時，重複 launch 和 Single restore smoke test。
+在 machine 沒有 network connection 時，重複 launch、Single restore smoke test 和
+Batch restore smoke test。
 
 Pass criteria：
 
 - Launch 仍可正常運作。
-- Restore 仍可正常運作。
+- Single restore 和 Batch restore 仍可正常運作。
 - 沒有嘗試下載 model 或 dependency。
 
 ## DM3/DM4 Restore Smoke Test
@@ -201,8 +231,12 @@ Pass criteria：
 - Four ONNX models included: pass/fail
 - License notices included: pass/fail
 - Launch without Python/uv/pip for end user: pass/fail
+- NiceGUI native window startup: pass/fail
+- Single image dialog opens: pass/fail
 - Small Single restore smoke test: pass/fail
-- Offline launch and restore: pass/fail
+- Batch folder dialog opens: pass/fail
+- Batch restore smoke test: pass/fail
+- Offline launch, Single restore, and Batch restore: pass/fail
 - DM3/DM4 restore smoke test, if safe sample is available: pass/fail/not run
 - README updated with verified status: pass/fail
 

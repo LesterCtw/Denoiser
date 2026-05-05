@@ -350,7 +350,6 @@ dependencies = [
     { name = "onnxruntime", version = "1.24.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "onnxruntime", version = "1.25.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
-    { name = "pyside6" },
     { name = "pywebview" },
     { name = "rosettasciio" },
     { name = "tifffile", version = "2025.5.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -364,6 +363,7 @@ build = [
 ]
 dev = [
     { name = "pyinstaller" },
+    { name = "pyside6" },
     { name = "pytest" },
 ]
 
@@ -375,7 +375,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10" },
     { name = "pyinstaller", marker = "extra == 'build'", specifier = ">=6.10" },
     { name = "pyinstaller", marker = "extra == 'dev'", specifier = ">=6.10" },
-    { name = "pyside6", specifier = ">=6.7" },
+    { name = "pyside6", marker = "extra == 'dev'", specifier = ">=6.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pywebview", specifier = ">=5.0" },
     { name = "rosettasciio", specifier = ">=0.13" },

@@ -61,3 +61,23 @@ def test_original_pyside6_adr_points_to_superseding_nicegui_adr() -> None:
     ).read_text(encoding="utf-8")
 
     assert "## Status\n\nSuperseded by ADR 0004" in pyside6_adr
+
+
+def test_windows_release_docs_describe_nicegui_package_flow() -> None:
+    build_guide = Path("docs/windows-build-and-package.md").read_text(
+        encoding="utf-8"
+    )
+    verification = Path("docs/windows-release-verification.md").read_text(
+        encoding="utf-8"
+    )
+    combined = build_guide + "\n" + verification
+
+    assert 'python -m pip install "nicegui>=2.0"' in build_guide
+    assert 'python -m pip install "pywebview>=5.0"' in build_guide
+    assert 'python -m pip install "PySide6>=6.7"' not in combined
+    assert "NiceGUI native window" in combined
+    assert "Single image dialog" in verification
+    assert "Batch folder dialog" in verification
+    assert "Batch restore smoke test" in verification
+    assert "_internal\\models\\sfr_hrstem.onnx" in verification
+    assert "_internal\\licenses\\THIRD_PARTY_NOTICES.md" in verification

@@ -4,7 +4,7 @@
 
 ## Goal
 
-產生一個 folder-style release：
+產生一個 NiceGUI native window 的 folder-style release：
 
 ```text
 dist\Denoiser\
@@ -137,14 +137,14 @@ python -m pip install --upgrade pip
 Install top-level dependencies one by one:
 
 ```powershell
+python -m pip install "nicegui>=2.0"
 python -m pip install "numpy>=1.26"
 python -m pip install "onnxruntime>=1.21"
 python -m pip install "Pillow>=10"
-python -m pip install "PySide6>=6.7"
+python -m pip install "pywebview>=5.0"
 python -m pip install "rosettasciio>=0.13"
 python -m pip install "tifffile>=2024.8.10"
 python -m pip install "pyinstaller>=6.10"
-python -m pip install "pytest>=8"
 python -m pip install -e . --no-deps
 ```
 
@@ -155,7 +155,12 @@ python -m pip install -e . --no-deps
 - `python -m pip install -e . --no-deps` 會安裝本地 Denoiser package，但不再重複解析
   dependencies。
 
-`scripts\build_windows.ps1` 會在 PyInstaller command 中加入
+Release app 走 NiceGUI native window stack，因此 release dependency flow 需要
+`nicegui` 和 `pywebview`。PySide6 只保留給舊 frontend 測試與開發支援，不是 NiceGUI
+release app 的必要 dependency。
+
+`scripts\build_windows.ps1` 會在 PyInstaller command 中加入 `--collect-data nicegui`，
+確保 NiceGUI frontend 的 package data 會進入 frozen app。它也會加入
 `--hidden-import rsciio.utils._distributed`、`--hidden-import pint` 和
 `--hidden-import yaml`。RosettaSciIO 的 DM3/DM4 reader 會用 lazy import 載入部分
 module；一般 Python 執行可正常解析，但 frozen app 需要明確包含它們。
@@ -177,13 +182,19 @@ memmap_distributed=rsciio.utils._distributed.memmap_distributed
 
 ```powershell
 python -m pip install -r requirements.txt
-python -m pip install "pytest>=8"
 python -m pip install -e .
 ```
 
 但如果批次安裝失敗，請回到上面的逐一安裝方式。
 
 ## Run Tests
+
+Release build 不需要 PySide6。Current source tree 仍保留舊 PySide6 frontend tests，所以
+如果你要在 build machine 跑完整 test suite，請另外安裝 dev extras：
+
+```powershell
+python -m pip install -e ".[dev]"
+```
 
 ```powershell
 python -m pytest
@@ -192,7 +203,7 @@ python -m pytest
 Expected: all tests pass.
 
 ```text
-85 passed
+... passed
 ```
 
 The exact runtime and test count may vary as coverage grows. The important result is
@@ -253,7 +264,11 @@ build artifacts.
 1. Copy `release\Denoiser-windows-python-3.12.8.zip` to a clean Windows 10/11 machine or folder.
 2. Extract the zip.
 3. Run `Denoiser\Denoiser.exe`.
-4. Use Single mode to restore a safe, non-sensitive 2D grayscale image.
-5. Confirm output appears beside the input under the selected `denoised_MODE` folder.
+4. Confirm the NiceGUI native window starts.
+5. Use Single mode and the native Single image dialog to restore a safe, non-sensitive
+   2D grayscale image.
+6. Use Batch mode and the native Batch folder dialog to restore a folder containing safe,
+   non-sensitive test inputs.
+7. Confirm outputs appear beside the inputs under the selected `denoised_MODE` folder.
 
 For the full release checklist, use `docs/windows-release-verification.md`.
