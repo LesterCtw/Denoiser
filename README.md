@@ -65,12 +65,12 @@ stacks。Windows release path 仍維持 PyInstaller。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
   left-rail loading/selected/error status、overwrite warning、large-image warning，以及
-  fit-to-window raw-only preview。
+  會填滿右側可用工作區高度的 fit-to-window raw-only preview。
 - NiceGUI Single restore and before/after comparison：Single mode 會使用現有
   Denoiser Single restore workflow 執行 Restore，自動寫入既有 output path，
   顯示 processing/saved/error status，restore 中停用衝突 controls，成功後顯示
   raw/restored before/after comparison、50% 初始 divider、click-to-jump 和 drag
-  interaction。Single preview area 不顯示右側 heading，讓 image preview 使用更多垂直空間。
+  interaction。Single preview area 不顯示右側 heading，且 preview frame 會填滿右側可用高度。
 - NiceGUI Batch folder selection and restore run：Batch mode 會透過 NiceGUI
   native folder dialog 選擇 folder，使用現有 Batch restore workflow 執行
   non-recursive restore run，顯示 progress、dense restored/skipped/failed per-file rows，

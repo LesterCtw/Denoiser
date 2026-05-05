@@ -946,18 +946,22 @@ def _shell_css(tokens: dict[str, str]) -> str:
         flex: 1 1 auto;
         align-self: stretch;
         min-height: 0;
+        height: 100%;
         width: 100%;
       }}
       nicegui-html.denoiser-preview {{
         display: block !important;
         align-self: stretch !important;
+        min-height: 0 !important;
+        height: 100% !important;
         width: 100% !important;
       }}
       .denoiser-preview-frame {{
         position: relative;
-        width: calc(100vw - 360px);
-        height: calc(100vh - 170px);
-        min-height: 360px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
         overflow: hidden;
         border: 1px solid {tokens["hairline"]};
         border-radius: 8px;
