@@ -24,7 +24,11 @@ def test_application_icon_path_is_available_without_pyside6(monkeypatch) -> None
     app_icon = import_app_icon_without_pyside6(monkeypatch)
 
     assert app_icon.APP_ICON_RELATIVE_PATH.as_posix() == "assets/icons/denoiser_icon.ico"
+    assert app_icon.APP_ICON_SOURCE_RELATIVE_PATH.as_posix() == "assets/icons/denoiser_icon.png"
+    assert app_icon.APP_ICON_MACOS_RELATIVE_PATH.as_posix() == "assets/icons/denoiser_icon.icns"
     assert app_icon.application_icon_path() is not None
+    assert app_icon.application_icon_source_path() is not None
+    assert app_icon.application_macos_icon_path() is not None
 
 
 def test_application_icon_path_uses_pyinstaller_resource_root(monkeypatch, tmp_path) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import html
+import sys
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -10,6 +11,11 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
+from denoiser.app_icon import (
+    application_icon_path,
+    application_icon_source_path,
+    application_macos_icon_path,
+)
 from denoiser.models import DenoiseMode
 from denoiser.output_paths import output_path_for_input
 from denoiser.single_image_inspection import SingleImageInspection, inspect_single_image
@@ -102,7 +108,10 @@ class NiceGuiNativePathSelector:
         return Path(selected[0])
 
     async def select_batch_folder_path(self) -> Path | None:
-        selected = await self._native_app.main_window.create_folder_dialog()
+        selected = await self._native_app.main_window.create_file_dialog(
+            allow_multiple=False,
+            dialog_type=_native_folder_dialog_type(),
+        )
         if not selected:
             return None
         if isinstance(selected, str):
@@ -286,8 +295,8 @@ class InspectorShellState:
         self.selected_single_image_path = result.source_path
         self.overwrite_output_path = result.output_path
         self.status = (
-            f"Saved: {result.output_path.name}\n"
-            f"Folder: {result.output_path.parent.name}"
+            f"Saved image: {result.output_path.name}\n"
+            f"Output folder: {result.output_path.parent.name}"
         )
         self.warnings = ()
         self.raw_preview = None
@@ -422,6 +431,12 @@ def render_nicegui_shell(
                     if workflow == current.selected_workflow
                     else "denoiser-pill"
                 )
+                button.style(
+                    _button_style(
+                        current.design_tokens,
+                        selected=workflow == current.selected_workflow,
+                    )
+                )
                 _disable_when_restoring(button, current)
 
     def render_mode_controls() -> None:
@@ -440,6 +455,12 @@ def render_nicegui_shell(
                     if current.mode_button_states[mode] == "selected"
                     else "denoiser-mode-button"
                 )
+                button.style(
+                    _button_style(
+                        current.design_tokens,
+                        selected=current.mode_button_states[mode] == "selected",
+                    )
+                )
                 _disable_when_restoring(button, current)
 
     def render_path_controls() -> None:
@@ -447,11 +468,13 @@ def render_nicegui_shell(
         if current.selected_workflow == "Batch":
             folder_button = ui_module.button("Add Folder", on_click=choose_batch_folder)
             folder_button.classes("denoiser-secondary-action")
+            folder_button.style(_button_style(current.design_tokens))
             _disable_when_restoring(folder_button, current)
             return
 
         open_button = ui_module.button("Open Image", on_click=choose_single_image)
         open_button.classes("denoiser-secondary-action")
+        open_button.style(_button_style(current.design_tokens))
         _disable_when_restoring(open_button, current)
 
     def render_action_controls() -> None:
@@ -460,6 +483,7 @@ def render_nicegui_shell(
             if current.batch_restore_state in ACTIVE_BATCH_RESTORE_STATES:
                 cancel_button = ui_module.button("Cancel", on_click=cancel_selected_batch)
                 cancel_button.classes("denoiser-secondary-action")
+                cancel_button.style(_button_style(current.design_tokens))
                 if current.batch_restore_state == "cancelling":
                     cancel_button.props("disable")
                 return
@@ -472,7 +496,19 @@ def render_nicegui_shell(
 
         action_button = ui_module.button(action_label, on_click=action_handler)
         action_button.classes("denoiser-primary-action")
+        action_button.style(_button_style(current.design_tokens, primary=True))
         _disable_when_restoring(action_button, current)
+
+    def render_status_panel() -> None:
+        current = state.snapshot()
+        with ui_module.column().classes("denoiser-status-panel"):
+            if _is_processing(current):
+                ui_module.html(
+                    '<div class="denoiser-status-progress" aria-label="Processing"></div>'
+                ).classes("denoiser-status-progress-host")
+            ui_module.label(current.status).classes("denoiser-status")
+            for warning in current.warnings:
+                ui_module.label(warning).classes("denoiser-warning")
 
     async def choose_single_image() -> None:
         path = await path_selector.select_single_image_path()
@@ -550,12 +586,10 @@ def render_nicegui_shell(
     def render_work_area() -> None:
         current = state.snapshot()
         with ui_module.column().classes("denoiser-work-area"):
-            ui_module.label(current.right_work_area_title).classes(
-                "denoiser-work-title"
-            )
-            ui_module.label(current.status).classes("denoiser-status")
-            for warning in current.warnings:
-                ui_module.label(warning).classes("denoiser-warning")
+            if current.right_work_area_title:
+                ui_module.label(current.right_work_area_title).classes(
+                    "denoiser-work-title"
+                )
 
             if current.selected_workflow == "Batch":
                 ui_module.html(_batch_results_html(current)).classes(
@@ -566,21 +600,29 @@ def render_nicegui_shell(
                     "denoiser-preview"
                 )
             elif current.raw_preview is not None:
-                ui_module.image(current.raw_preview.data_url).classes(
-                    "denoiser-raw-preview"
+                ui_module.html(_raw_preview_html(current.raw_preview)).classes(
+                    "denoiser-preview"
                 )
             else:
                 ui_module.html(
-                    "<div class=\"denoiser-preview-placeholder\"></div>"
+                    '<div class="denoiser-preview-frame denoiser-preview-placeholder"></div>'
                 ).classes("denoiser-preview")
 
     workflow_controls = _refreshable(ui_module, render_workflow_controls)
     path_controls = _refreshable(ui_module, render_path_controls)
     mode_controls = _refreshable(ui_module, render_mode_controls)
     action_controls = _refreshable(ui_module, render_action_controls)
+    status_panel = _refreshable(ui_module, render_status_panel)
     work_area = _refreshable(ui_module, render_work_area)
     refreshables.extend(
-        [workflow_controls, path_controls, mode_controls, action_controls, work_area]
+        [
+            workflow_controls,
+            path_controls,
+            mode_controls,
+            action_controls,
+            status_panel,
+            work_area,
+        ]
     )
 
     with ui_module.column().classes("denoiser-shell"):
@@ -596,7 +638,7 @@ def render_nicegui_shell(
                 mode_controls()
 
                 action_controls()
-                ui_module.label(snapshot.status).classes("denoiser-status")
+                status_panel()
 
             work_area()
 
@@ -629,6 +671,13 @@ def _disable_when_restoring(element: Any, snapshot: InspectorShellSnapshot) -> N
         element.props("disable")
 
 
+def _is_processing(snapshot: InspectorShellSnapshot) -> bool:
+    return (
+        snapshot.single_preview_state == "restoring"
+        or snapshot.batch_restore_state in ACTIVE_BATCH_RESTORE_STATES
+    )
+
+
 async def _run_restore_in_thread(callback: Any, *args: Any) -> Any:
     from nicegui import run
 
@@ -638,6 +687,11 @@ async def _run_restore_in_thread(callback: Any, *args: Any) -> Any:
 def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
     if ui_module is None:
         from nicegui import ui as ui_module
+    from nicegui import app as native_app
+
+    icon_source_path = _native_window_icon_path()
+    if icon_source_path is not None:
+        native_app.native.start_args["icon"] = str(icon_source_path)
 
     def render_root() -> None:
         render_nicegui_shell(ui_module=ui_module)
@@ -645,6 +699,7 @@ def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
     ui_module.run(
         root=render_root,
         title="Denoiser",
+        favicon=application_icon_path(),
         native=True,
         window_size=(1280, 820),
         fullscreen=False,
@@ -655,50 +710,153 @@ def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
     return 0
 
 
+def _native_folder_dialog_type() -> Any:
+    try:
+        import webview
+    except ImportError:
+        return "folder"
+
+    file_dialog = getattr(webview, "FileDialog", None)
+    if file_dialog is not None:
+        return file_dialog.FOLDER
+    return getattr(webview, "FOLDER_DIALOG", "folder")
+
+
+def _native_window_icon_path() -> Path | None:
+    if sys.platform == "darwin":
+        macos_icon_path = application_macos_icon_path()
+        if macos_icon_path is not None:
+            return macos_icon_path
+    return application_icon_source_path()
+
+
 def _shell_css(tokens: dict[str, str]) -> str:
     return f"""
     <style>
       html, body {{
         background: {tokens["canvas"]};
+        margin: 0;
+        overflow: hidden;
+      }}
+      .nicegui-content,
+      .q-page {{
+        padding: 0 !important;
+        background: {tokens["canvas"]};
       }}
       .denoiser-shell {{
-        min-height: 100vh;
+        height: 100vh;
         background: {tokens["canvas"]};
         color: {tokens["ink"]};
         font-family: Inter, "SF Pro Display", "Segoe UI", sans-serif;
+        letter-spacing: 0;
+        overflow: hidden;
       }}
       .denoiser-inspector {{
+        display: flex;
+        flex-wrap: nowrap;
         width: 100%;
-        min-height: 100vh;
+        height: 100vh;
         gap: 0;
       }}
       .denoiser-control-rail {{
-        width: 320px;
-        min-height: 100vh;
+        flex: 0 0 304px;
+        width: 304px;
+        height: 100vh;
         background: {tokens["surface-1"]};
         border-right: 1px solid {tokens["hairline"]};
-        padding: 24px;
-        gap: 18px;
+        padding: 22px;
+        gap: 16px;
+        overflow: hidden;
       }}
       .denoiser-work-area {{
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
         flex: 1;
-        min-height: 100vh;
+        min-width: 0;
+        height: 100vh;
         background: {tokens["canvas"]};
-        padding: 28px;
-        gap: 20px;
+        padding: 26px 28px 28px;
+        gap: 14px;
+        overflow: hidden;
       }}
       .denoiser-product-title {{
-        font-size: 22px;
+        color: {tokens["ink"]};
+        font-size: 21px;
         font-weight: 600;
+        line-height: 1.2;
       }}
       .denoiser-section-label,
       .denoiser-status {{
         color: {tokens["ink-muted"]};
         font-size: 13px;
+        line-height: 1.45;
+        white-space: pre-line;
       }}
       .denoiser-warning {{
         color: {tokens["primary"]};
         font-size: 13px;
+        line-height: 1.45;
+      }}
+      .denoiser-status-panel {{
+        margin-top: auto;
+        gap: 6px;
+        padding-top: 14px;
+        border-top: 1px solid {tokens["hairline"]};
+      }}
+      .denoiser-status-progress-host {{
+        width: 100%;
+      }}
+      .denoiser-status-progress {{
+        position: relative;
+        width: 100%;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: {tokens["surface-3"]};
+      }}
+      .denoiser-status-progress::before {{
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 38%;
+        border-radius: 999px;
+        background: {tokens["primary"]};
+        animation: denoiser-status-progress-slide 1.1s ease-in-out infinite;
+      }}
+      @keyframes denoiser-status-progress-slide {{
+        0% {{
+          transform: translateX(-110%);
+        }}
+        100% {{
+          transform: translateX(275%);
+        }}
+      }}
+      .denoiser-segmented-control {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+      }}
+      .denoiser-mode-list {{
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+      }}
+      .denoiser-control-rail .q-btn {{
+        min-height: 38px;
+        width: 100%;
+        box-shadow: none !important;
+        text-transform: none;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.2;
+      }}
+      .denoiser-secondary-action,
+      .denoiser-primary-action {{
+        margin-top: 2px;
       }}
       .denoiser-pill,
       .denoiser-mode-button,
@@ -707,42 +865,131 @@ def _shell_css(tokens: dict[str, str]) -> str:
         color: {tokens["ink"]} !important;
         border: 1px solid {tokens["hairline"]};
         border-radius: 8px;
+        padding: 8px 12px;
       }}
       .denoiser-pill-selected,
-      .denoiser-mode-button-selected,
+      .denoiser-mode-button-selected {{
+        background: {tokens["surface-3"]} !important;
+        color: {tokens["ink"]} !important;
+        border: 1px solid {tokens["primary"]};
+      }}
       .denoiser-primary-action {{
         background: {tokens["primary"]} !important;
         color: white !important;
+        border: 1px solid {tokens["primary"]};
+        border-radius: 8px;
+        padding: 9px 14px;
+      }}
+      .q-btn.denoiser-pill,
+      .q-btn.denoiser-mode-button,
+      .q-btn.denoiser-secondary-action {{
+        background: {tokens["surface-2"]} !important;
+        color: {tokens["ink"]} !important;
+        border: 1px solid {tokens["hairline"]} !important;
+      }}
+      .q-btn.denoiser-pill-selected,
+      .q-btn.denoiser-mode-button-selected {{
+        background: {tokens["surface-3"]} !important;
+        color: {tokens["ink"]} !important;
+        border: 1px solid {tokens["primary"]} !important;
+      }}
+      .q-btn.denoiser-primary-action {{
+        background: {tokens["primary"]} !important;
+        color: white !important;
+        border: 1px solid {tokens["primary"]} !important;
+      }}
+      .q-btn.denoiser-pill .q-focus-helper,
+      .q-btn.denoiser-mode-button .q-focus-helper,
+      .q-btn.denoiser-secondary-action .q-focus-helper,
+      .q-btn.denoiser-primary-action .q-focus-helper {{
+        opacity: 0 !important;
+        background: transparent !important;
+        display: none !important;
+      }}
+      .q-btn.denoiser-pill .q-btn__content,
+      .q-btn.denoiser-mode-button .q-btn__content,
+      .q-btn.denoiser-secondary-action .q-btn__content {{
+        background: {tokens["surface-2"]} !important;
+        color: {tokens["ink"]} !important;
+      }}
+      .q-btn.denoiser-pill-selected .q-btn__content,
+      .q-btn.denoiser-mode-button-selected .q-btn__content {{
+        background: {tokens["surface-3"]} !important;
+        color: {tokens["ink"]} !important;
+      }}
+      .q-btn.denoiser-primary-action .q-btn__content {{
+        background: {tokens["primary"]} !important;
+        color: white !important;
+      }}
+      .q-btn.denoiser-pill .q-btn__content,
+      .q-btn.denoiser-mode-button .q-btn__content,
+      .q-btn.denoiser-secondary-action .q-btn__content,
+      .q-btn.denoiser-primary-action .q-btn__content {{
+        position: absolute;
+        inset: 0;
+        border-radius: 7px;
+      }}
+      .q-btn.denoiser-pill::before,
+      .q-btn.denoiser-mode-button::before,
+      .q-btn.denoiser-secondary-action::before,
+      .q-btn.denoiser-primary-action::before {{
+        box-shadow: none !important;
       }}
       .denoiser-work-title {{
-        font-size: 28px;
+        color: {tokens["ink"]};
+        font-size: 26px;
         font-weight: 600;
+        line-height: 1.2;
       }}
-      .denoiser-preview-placeholder {{
-        min-height: 420px;
-        border: 1px solid {tokens["hairline"]};
-        border-radius: 8px;
-        background: linear-gradient(135deg, {tokens["surface-1"]}, {tokens["surface-2"]});
-      }}
-      .denoiser-raw-preview {{
+      .denoiser-preview {{
+        display: block;
+        flex: 1 1 auto;
+        align-self: stretch;
+        min-height: 0;
         width: 100%;
-        max-height: calc(100vh - 160px);
-        object-fit: contain;
-        border: 1px solid {tokens["hairline"]};
-        border-radius: 8px;
-        background: {tokens["surface-1"]};
       }}
-      .denoiser-comparison {{
+      nicegui-html.denoiser-preview {{
+        display: block !important;
+        align-self: stretch !important;
+        width: 100% !important;
+      }}
+      .denoiser-preview-frame {{
         position: relative;
-        width: 100%;
-        min-height: 420px;
-        max-height: calc(100vh - 160px);
+        width: calc(100vw - 360px);
+        height: calc(100vh - 170px);
+        min-height: 360px;
         overflow: hidden;
         border: 1px solid {tokens["hairline"]};
         border-radius: 8px;
         background: {tokens["surface-1"]};
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+      }}
+      .denoiser-preview-frame-active {{
+        background: #050506;
+      }}
+      .denoiser-preview-placeholder {{
+        background: {tokens["surface-1"]};
+      }}
+      .denoiser-raw-preview {{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }}
+      .denoiser-preview-image {{
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        image-rendering: auto;
+      }}
+      .denoiser-comparison {{
+        --divider-position: 0.5;
+        --divider-frame-position: 50%;
+        --comparison-image-top: 0px;
+        --comparison-image-height: 100%;
         user-select: none;
         touch-action: none;
+        cursor: ew-resize;
       }}
       .denoiser-comparison img {{
         position: absolute;
@@ -752,64 +999,81 @@ def _shell_css(tokens: dict[str, str]) -> str:
         object-fit: contain;
       }}
       .denoiser-comparison-restored {{
-        clip-path: inset(0 0 0 50%);
+        clip-path: inset(0 0 0 var(--divider-frame-position));
       }}
       .denoiser-comparison-divider {{
         position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 50%;
-        width: 1px;
+        top: var(--comparison-image-top);
+        left: var(--divider-frame-position);
+        width: 2px;
+        height: var(--comparison-image-height);
         background: white;
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72);
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.72),
+          0 0 0 3px rgba(94, 106, 210, 0.28);
+        pointer-events: none;
       }}
-      .denoiser-comparison-control {{
+      .denoiser-comparison-hit-target {{
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
-        opacity: 0;
         cursor: ew-resize;
+        background: transparent;
       }}
       .denoiser-batch-results {{
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
+        min-height: 0;
+        overflow: hidden;
       }}
       .denoiser-batch-progress {{
         color: {tokens["ink-muted"]};
         font-size: 13px;
+        line-height: 1.4;
       }}
       .denoiser-batch-list {{
         display: flex;
         flex-direction: column;
-        gap: 8px;
-      }}
-      .denoiser-batch-row {{
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 12px;
-        align-items: start;
-        padding: 12px;
+        gap: 0;
+        min-height: 0;
+        overflow: auto;
         border: 1px solid {tokens["hairline"]};
         border-radius: 8px;
         background: {tokens["surface-1"]};
       }}
+      .denoiser-batch-row {{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        min-height: 42px;
+        padding: 8px 10px;
+        border-bottom: 1px solid {tokens["hairline"]};
+      }}
+      .denoiser-batch-row:last-child {{
+        border-bottom: 0;
+      }}
       .denoiser-batch-file {{
         color: {tokens["ink"]};
-        font-size: 14px;
-        overflow-wrap: anywhere;
-        white-space: normal;
+        font-size: 13px;
+        line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }}
       .denoiser-batch-detail {{
         color: {tokens["ink-muted"]};
         font-size: 12px;
-        overflow-wrap: anywhere;
-        white-space: normal;
+        line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }}
       .denoiser-batch-badge {{
         border-radius: 999px;
-        padding: 3px 8px;
+        padding: 3px 7px;
         font-size: 12px;
         line-height: 1.4;
         white-space: nowrap;
@@ -831,13 +1095,153 @@ def _shell_css(tokens: dict[str, str]) -> str:
         background: rgba(127, 139, 158, 0.18);
       }}
     </style>
+    <script>
+      window.denoiserComparisonImageBounds = root => {{
+        const rect = root.getBoundingClientRect();
+        const image = root.querySelector('img');
+        const fallback = {{
+          left: rect.left,
+          width: rect.width,
+          relativeLeft: 0,
+          relativeTop: 0,
+          relativeWidth: rect.width,
+          relativeHeight: rect.height,
+        }};
+        if (!rect.width || !rect.height || !image?.naturalWidth || !image?.naturalHeight) {{
+          return fallback;
+        }}
+
+        const frameRatio = rect.width / rect.height;
+        const imageRatio = image.naturalWidth / image.naturalHeight;
+        let relativeWidth = rect.width;
+        let relativeHeight = rect.height;
+        let relativeLeft = 0;
+        let relativeTop = 0;
+        if (imageRatio > frameRatio) {{
+          relativeHeight = rect.width / imageRatio;
+          relativeTop = (rect.height - relativeHeight) / 2;
+        }} else {{
+          relativeWidth = rect.height * imageRatio;
+          relativeLeft = (rect.width - relativeWidth) / 2;
+        }}
+
+        return {{
+          left: rect.left + relativeLeft,
+          width: relativeWidth,
+          relativeLeft,
+          relativeTop,
+          relativeWidth,
+          relativeHeight,
+        }};
+      }};
+      window.denoiserApplyComparisonDivider = (root, value) => {{
+        const rect = root.getBoundingClientRect();
+        const bounds = window.denoiserComparisonImageBounds(root);
+        const next = Math.max(0, Math.min(1, value));
+        const frameX = bounds.relativeLeft + bounds.relativeWidth * next;
+        const framePercent = rect.width ? `${{(frameX / rect.width) * 100}}%` : `${{next * 100}}%`;
+        root.dataset.divider = String(next);
+        root.style.setProperty('--divider-position', String(next));
+        root.style.setProperty('--divider-frame-position', framePercent);
+        root.style.setProperty('--comparison-image-top', `${{bounds.relativeTop}}px`);
+        root.style.setProperty('--comparison-image-height', `${{bounds.relativeHeight}}px`);
+        root.setAttribute('aria-valuenow', String(Math.round(next * 100)));
+      }};
+      window.denoiserRefreshComparisonDivider = root => {{
+        if (!root) return;
+        const current = Number(root.dataset.divider || '0.5');
+        window.denoiserApplyComparisonDivider(root, current);
+      }};
+      window.denoiserSetComparisonDivider = (root, event) => {{
+        const bounds = window.denoiserComparisonImageBounds(root);
+        if (!bounds.width) return;
+        const value = (event.clientX - bounds.left) / bounds.width;
+        window.denoiserApplyComparisonDivider(root, value);
+      }};
+      window.denoiserMoveComparisonDividerWithKey = (root, event) => {{
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const current = Number(root.dataset.divider || '0.5');
+        let next = current;
+        if (event.key === 'ArrowLeft') next = current - 0.05;
+        if (event.key === 'ArrowRight') next = current + 0.05;
+        if (event.key === 'Home') next = 0;
+        if (event.key === 'End') next = 1;
+        window.denoiserApplyComparisonDivider(root, next);
+      }};
+      if (!window.denoiserComparisonListenersInstalled) {{
+        window.denoiserComparisonListenersInstalled = true;
+        window.denoiserActiveComparison = null;
+        document.addEventListener('mousedown', event => {{
+          const root = event.target.closest?.('.denoiser-comparison');
+          if (!root) return;
+          window.denoiserActiveComparison = root;
+          window.denoiserSetComparisonDivider(root, event);
+        }});
+        document.addEventListener('mousemove', event => {{
+          if (!window.denoiserActiveComparison || !event.buttons) return;
+          window.denoiserSetComparisonDivider(window.denoiserActiveComparison, event);
+        }});
+        document.addEventListener('mouseup', () => {{
+          window.denoiserActiveComparison = null;
+        }});
+        document.addEventListener('pointerdown', event => {{
+          const root = event.target.closest?.('.denoiser-comparison');
+          if (!root) return;
+          window.denoiserActiveComparison = root;
+          window.denoiserSetComparisonDivider(root, event);
+        }});
+        document.addEventListener('pointermove', event => {{
+          if (!window.denoiserActiveComparison || !event.buttons) return;
+          window.denoiserSetComparisonDivider(window.denoiserActiveComparison, event);
+        }});
+        document.addEventListener('pointerup', () => {{
+          window.denoiserActiveComparison = null;
+        }});
+        window.addEventListener('resize', () => {{
+          document.querySelectorAll('.denoiser-comparison').forEach(root => {{
+            window.denoiserRefreshComparisonDivider(root);
+          }});
+        }});
+        document.addEventListener('keydown', event => {{
+          const root = event.target.closest?.('.denoiser-comparison');
+          if (!root) return;
+          window.denoiserMoveComparisonDividerWithKey(root, event);
+        }});
+      }}
+    </script>
     """
 
 
 def _right_work_area_title(selected_workflow: str) -> str:
     if selected_workflow == "Batch":
-        return "Batch restore run"
-    return "Single image inspection"
+        return "Batch Restore"
+    return ""
+
+
+def _button_style(
+    tokens: dict[str, str],
+    *,
+    selected: bool = False,
+    primary: bool = False,
+) -> str:
+    background = tokens["surface-2"]
+    border = tokens["hairline"]
+    if selected:
+        background = tokens["surface-3"]
+        border = tokens["primary"]
+    if primary:
+        background = tokens["primary"]
+        border = tokens["primary"]
+
+    return (
+        f"background: {background}; "
+        f"background-color: {background}; "
+        f"color: {tokens['ink'] if not primary else '#ffffff'}; "
+        f"border: 1px solid {border}; "
+        "box-shadow: none; "
+        "text-transform: none;"
+    )
 
 
 def _overwrite_output_path(path: Path, denoising_mode: str) -> Path:
@@ -871,30 +1275,49 @@ def _comparison_preview(raw_pixels: np.ndarray, restored_pixels: np.ndarray) -> 
     )
 
 
+def _raw_preview_html(preview: RawPreview) -> str:
+    source = html.escape(preview.data_url, quote=True)
+    return f"""
+    <div class="denoiser-preview-frame denoiser-preview-frame-active denoiser-raw-preview">
+      <img class="denoiser-preview-image" src="{source}" alt="Raw image">
+    </div>
+    """
+
+
 def _comparison_html(preview: ComparisonPreview) -> str:
     divider_percent = preview.divider_position * 100
+    raw_source = html.escape(preview.raw_data_url, quote=True)
+    restored_source = html.escape(preview.restored_data_url, quote=True)
     return f"""
-    <div class="denoiser-comparison"
+    <div class="denoiser-preview-frame denoiser-preview-frame-active denoiser-comparison"
+         style="--divider-position: {preview.divider_position}; --divider-frame-position: {divider_percent}%"
          data-divider="{preview.divider_position}"
          data-raw-side="{preview.raw_side}"
-         data-restored-side="{preview.restored_side}">
-      <img class="denoiser-comparison-raw" src="{preview.raw_data_url}" alt="Raw image">
-      <img class="denoiser-comparison-restored" src="{preview.restored_data_url}" alt="Restored image">
+         data-restored-side="{preview.restored_side}"
+         role="slider"
+         tabindex="0"
+         aria-label="Before after comparison divider"
+         aria-valuemin="0"
+         aria-valuemax="100"
+         aria-valuenow="{divider_percent}"
+         onkeydown="window.denoiserMoveComparisonDividerWithKey(this, event)"
+         onpointerdown="
+           this.setPointerCapture(event.pointerId);
+           window.denoiserSetComparisonDivider(this, event);
+         "
+         onpointermove="
+           if (event.buttons) window.denoiserSetComparisonDivider(this, event);
+         ">
+      <img class="denoiser-comparison-raw"
+           src="{raw_source}"
+           alt="Raw image"
+           onload="window.denoiserRefreshComparisonDivider(this.closest('.denoiser-comparison'))">
+      <img class="denoiser-comparison-restored"
+           src="{restored_source}"
+           alt="Restored image"
+           onload="window.denoiserRefreshComparisonDivider(this.closest('.denoiser-comparison'))">
       <div class="denoiser-comparison-divider"></div>
-      <input class="denoiser-comparison-control"
-             type="range"
-             min="0"
-             max="100"
-             value="{divider_percent}"
-             aria-label="Before after comparison divider"
-             oninput="
-               const root = this.closest('.denoiser-comparison');
-               const percent = this.value + '%';
-               root.dataset.divider = String(Number(this.value) / 100);
-               root.querySelector('.denoiser-comparison-restored').style.clipPath =
-                 'inset(0 0 0 ' + percent + ')';
-               root.querySelector('.denoiser-comparison-divider').style.left = percent;
-             ">
+      <div class="denoiser-comparison-hit-target"></div>
     </div>
     """
 
@@ -963,10 +1386,13 @@ def _load_design_tokens() -> dict[str, str]:
         "canvas": "#010102",
         "surface-1": "#0f1011",
         "surface-2": "#141516",
+        "surface-3": "#18191a",
         "primary": "#5e6ad2",
         "ink": "#f7f8f8",
         "ink-muted": "#d0d6e0",
+        "ink-subtle": "#8a8f98",
         "hairline": "#23252a",
+        "hairline-strong": "#34343a",
     }
     if not design_path.exists():
         return fallback

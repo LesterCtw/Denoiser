@@ -15,6 +15,7 @@ from denoiser.single_image_inspection import SingleImageInspection
 class RecordingElement:
     def __init__(self, props_sink: list[str] | None = None) -> None:
         self._props_sink = props_sink
+        self.styles: list[str] = []
 
     def __enter__(self) -> "RecordingElement":
         return self
@@ -31,6 +32,7 @@ class RecordingElement:
         return self
 
     def style(self, value: str) -> "RecordingElement":
+        self.styles.append(value)
         return self
 
 
@@ -41,6 +43,7 @@ class RecordingUi:
         self.buttons: list[str] = []
         self.button_actions: dict[str, object] = {}
         self.button_props: dict[str, list[str]] = {}
+        self.button_styles: dict[str, list[str]] = {}
         self.images: list[str] = []
         self.run_kwargs: dict[str, object] | None = None
 
@@ -61,7 +64,9 @@ class RecordingUi:
         self.buttons.append(text)
         self.button_actions[text] = on_click
         self.button_props[text] = []
-        return RecordingElement(self.button_props[text])
+        element = RecordingElement(self.button_props[text])
+        self.button_styles[text] = element.styles
+        return element
 
     def html(self, html: str) -> RecordingElement:
         self.labels.append(html)
@@ -96,12 +101,12 @@ def test_nicegui_shell_workflow_switch_updates_right_work_area_state() -> None:
     from denoiser.nicegui_shell import InspectorShellState
 
     state = InspectorShellState()
-    assert state.snapshot().right_work_area_title == "Single image inspection"
+    assert state.snapshot().right_work_area_title == ""
 
     state.select_workflow("Batch")
 
     assert state.snapshot().selected_workflow == "Batch"
-    assert state.snapshot().right_work_area_title == "Batch restore run"
+    assert state.snapshot().right_work_area_title == "Batch Restore"
 
 
 def test_nicegui_shell_mode_selection_updates_selected_state() -> None:
@@ -127,7 +132,7 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     render_nicegui_shell(ui_module=recording_ui, state=InspectorShellState())
 
     assert "Denoiser" in recording_ui.labels
-    assert "Single image inspection" in recording_ui.labels
+    assert "Single image inspection" not in recording_ui.labels
     assert "Ready" in recording_ui.labels
     assert {"Single", "Batch", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"} <= set(
         recording_ui.buttons
@@ -135,20 +140,34 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert "#010102" in recording_ui.head_html[0]
     assert "#5e6ad2" in recording_ui.head_html[0]
     assert ".denoiser-shell" in recording_ui.head_html[0]
+    assert ".denoiser-preview-frame" in recording_ui.head_html[0]
+    assert ".denoiser-status-panel" in recording_ui.head_html[0]
+    assert "align-items: stretch" in recording_ui.head_html[0]
+    assert "height: calc(100vh - 170px)" in recording_ui.head_html[0]
+    assert "window.denoiserSetComparisonDivider" in recording_ui.head_html[0]
+    assert "document.addEventListener('mousedown'" in recording_ui.head_html[0]
+    assert "#141516" in recording_ui.button_styles["Batch"][0]
+    assert "#18191a" in recording_ui.button_styles["Single"][0]
+    assert "#5e6ad2" in recording_ui.button_styles["Restore"][0]
 
 
 def test_nicegui_shell_runs_as_standard_native_window() -> None:
     from denoiser.nicegui_shell import run_nicegui_native_window
+    from nicegui import app
 
     recording_ui = RecordingUi()
 
     assert run_nicegui_native_window(ui_module=recording_ui) == 0
 
+    assert app.native.start_args["icon"] == str(
+        Path("assets/icons/denoiser_icon.icns").resolve()
+    )
     assert recording_ui.run_kwargs is not None
     root = recording_ui.run_kwargs.pop("root")
     assert callable(root)
     assert recording_ui.run_kwargs == {
         "title": "Denoiser",
+        "favicon": Path("assets/icons/denoiser_icon.ico").resolve(),
         "native": True,
         "window_size": (1280, 820),
         "fullscreen": False,
@@ -161,7 +180,7 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
     root()
 
     assert "Denoiser" in recording_ui.labels
-    assert "Single image inspection" in recording_ui.labels
+    assert "Single image inspection" not in recording_ui.labels
 
 
 def test_denoiser_main_launches_nicegui_native_shell(monkeypatch) -> None:
@@ -323,8 +342,8 @@ def test_single_restore_writes_output_and_shows_before_after_comparison(
     snapshot = state.snapshot()
     output = tmp_path / "denoised_LRSEM" / "wafer.tif"
     assert output.is_file()
-    assert f"Saved: {output.name}" in snapshot.status
-    assert f"Folder: {output.parent.name}" in snapshot.status
+    assert f"Saved image: {output.name}" in snapshot.status
+    assert f"Output folder: {output.parent.name}" in snapshot.status
     assert snapshot.raw_preview is None
     assert snapshot.comparison_preview is not None
     assert snapshot.comparison_preview.divider_position == 0.5
@@ -392,6 +411,7 @@ def test_nicegui_shell_render_disables_single_controls_while_restoring(
 
     for button in ("Single", "Batch", "Open Image", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"):
         assert "disable" in recording_ui.button_props[button]
+    assert "denoiser-status-progress" in "\n".join(recording_ui.labels)
 
 
 def test_single_restore_failure_returns_controls_to_usable_state(
@@ -419,6 +439,15 @@ def test_single_restore_failure_returns_controls_to_usable_state(
     assert snapshot.status == "Cannot restore: model failed"
     assert snapshot.single_controls_enabled is True
     assert snapshot.raw_preview is not None
+
+
+def test_nicegui_shell_render_hides_status_progress_when_idle() -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    recording_ui = RecordingUi()
+    render_nicegui_shell(ui_module=recording_ui, state=InspectorShellState())
+
+    assert "denoiser-status-progress" not in "\n".join(recording_ui.labels)
 
 
 def test_batch_folder_selection_stores_selected_folder_path(tmp_path: Path) -> None:
@@ -558,8 +587,8 @@ def test_nicegui_shell_render_shows_batch_progress_rows_and_readable_badges() ->
     assert "notes.txt" in batch_html
     assert "denoiser-batch-status-restored" in batch_html
     assert "denoiser-batch-status-skipped" in batch_html
-    assert "overflow-wrap: anywhere" in recording_ui.head_html[0]
-    assert "white-space: normal" in recording_ui.head_html[0]
+    assert "text-overflow: ellipsis" in recording_ui.head_html[0]
+    assert "min-height: 42px" in recording_ui.head_html[0]
 
 
 @pytest.mark.anyio
@@ -751,7 +780,10 @@ def test_nicegui_shell_render_shows_raw_preview_without_comparison_divider(
     recording_ui = RecordingUi()
     render_nicegui_shell(ui_module=recording_ui, state=state)
 
-    assert recording_ui.images == [state.snapshot().raw_preview.data_url]
+    preview_html = "\n".join(recording_ui.labels)
+    assert "denoiser-preview-frame-active denoiser-raw-preview" in preview_html
+    assert "denoiser-preview-image" in preview_html
+    assert state.snapshot().raw_preview.data_url in preview_html
     assert "Selected image: wafer.tif" in recording_ui.labels
     assert "Existing outputs will be overwritten." in recording_ui.labels
     assert not any("divider" in label.lower() for label in recording_ui.labels)
@@ -780,13 +812,32 @@ def test_nicegui_shell_render_shows_comparison_with_divider_interactions(
     render_nicegui_shell(ui_module=recording_ui, state=state, engine=object())
 
     comparison_html = "\n".join(recording_ui.labels)
+    assert "denoiser-preview-frame-active denoiser-comparison" in comparison_html
     assert "denoiser-comparison" in comparison_html
     assert 'data-divider="0.5"' in comparison_html
     assert 'data-raw-side="left"' in comparison_html
     assert 'data-restored-side="right"' in comparison_html
-    assert 'type="range"' in comparison_html
-    assert "denoiser-comparison-control" in comparison_html
-    assert "oninput" in comparison_html
+    assert 'role="slider"' in comparison_html
+    assert "denoiser-comparison-hit-target" in comparison_html
+    assert "onpointerdown" in comparison_html
+    assert "onpointermove" in comparison_html
+
+
+def test_nicegui_shell_comparison_divider_is_bound_to_fitted_image_area() -> None:
+    from denoiser.nicegui_shell import build_inspector_shell_snapshot
+    from denoiser.nicegui_shell import _shell_css
+
+    css = _shell_css(build_inspector_shell_snapshot().design_tokens)
+
+    assert "window.denoiserComparisonImageBounds" in css
+    assert "naturalWidth" in css
+    assert "naturalHeight" in css
+    assert "relativeLeft" in css
+    assert "relativeWidth" in css
+    assert "--divider-frame-position" in css
+    assert "--comparison-image-top" in css
+    assert "--comparison-image-height" in css
+    assert "event.clientX - bounds.left" in css
 
 
 @pytest.mark.anyio
@@ -857,12 +908,13 @@ async def test_native_path_selector_uses_native_file_dialog() -> None:
 @pytest.mark.anyio
 async def test_native_path_selector_uses_native_folder_dialog() -> None:
     from denoiser.nicegui_shell import NiceGuiNativePathSelector
+    from denoiser.nicegui_shell import _native_folder_dialog_type
 
     class NativeWindow:
         def __init__(self) -> None:
             self.dialog_kwargs: dict[str, object] | None = None
 
-        async def create_folder_dialog(self, **kwargs: object) -> list[str]:
+        async def create_file_dialog(self, **kwargs: object) -> list[str]:
             self.dialog_kwargs = kwargs
             return ["/case"]
 
@@ -874,4 +926,7 @@ async def test_native_path_selector_uses_native_folder_dialog() -> None:
     selector = NiceGuiNativePathSelector(native_app=native_app)
 
     assert await selector.select_batch_folder_path() == Path("/case")
-    assert native_app.main_window.dialog_kwargs == {}
+    assert native_app.main_window.dialog_kwargs == {
+        "allow_multiple": False,
+        "dialog_type": _native_folder_dialog_type(),
+    }

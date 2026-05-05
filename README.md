@@ -13,7 +13,10 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Agent instructions：`AGENTS.md`
 - Domain context：`CONTEXT.md`
 - Architecture decisions：`docs/adr/`
-- App icon：`assets/icons/denoiser_icon.ico`；使用 Aligner / Denoiser / Measurer 共用的深色圓角 icon style，僅保留置中的產品首字母，不放底部 wordmark。
+- App icon：`assets/icons/denoiser_icon.png` 是 imagegen source artwork，
+  `assets/icons/denoiser_icon.ico` 是 Windows build/runtime icon，
+  `assets/icons/denoiser_icon.icns` 是 macOS local native-window icon；使用深色圓角
+  icon style，僅保留置中的產品首字母，不放底部 wordmark。
 - Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
@@ -28,6 +31,14 @@ uv run denoiser
 
 這個方式用來做 local development smoke test。正式 end-user release 仍以 Windows
 PyInstaller packaged `Denoiser.exe` 為準。
+
+Local dev icon behavior：
+
+- Windows packaged release 使用 `assets/icons/denoiser_icon.ico` 作為 `Denoiser.exe` 和
+  native window icon。
+- macOS `uv run denoiser` 會把 `assets/icons/denoiser_icon.icns` 傳給 pywebview native
+  app icon。macOS menu bar 在未封裝的 Python process 中仍可能顯示 `python3`；這是
+  development launch 的限制，不代表 Windows release icon 沒有設定。
 
 Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 
@@ -48,24 +59,28 @@ stacks。Windows release path 仍維持 PyInstaller。
 - `src/denoiser` package layout 的專案骨架。
 - NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
-  workflow switch、四個 denoising mode buttons、primary action area 和 status area。
+  workflow switch、四個 denoising mode buttons、primary action area 和 pinned left
+  status area。
   NiceGUI restore parity 已完成。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
-  loading/selected/error status、overwrite warning、large-image warning，以及
+  left-rail loading/selected/error status、overwrite warning、large-image warning，以及
   fit-to-window raw-only preview。
 - NiceGUI Single restore and before/after comparison：Single mode 會使用現有
   Denoiser Single restore workflow 執行 Restore，自動寫入既有 output path，
   顯示 processing/saved/error status，restore 中停用衝突 controls，成功後顯示
   raw/restored before/after comparison、50% 初始 divider、click-to-jump 和 drag
-  interaction。
+  interaction。Single preview area 不顯示右側 heading，讓 image preview 使用更多垂直空間。
 - NiceGUI Batch folder selection and restore run：Batch mode 會透過 NiceGUI
   native folder dialog 選擇 folder，使用現有 Batch restore workflow 執行
-  non-recursive restore run，顯示 progress、restored/skipped/failed per-file rows，
+  non-recursive restore run，顯示 progress、dense restored/skipped/failed per-file rows，
   active run 的 Cancel action、cancelled per-file rows，以及 final
   restored/failed/skipped/cancelled summary。
-- App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
-  Windows build script 會使用同一個 icon。
+- NiceGUI 3 native folder selection compatibility：Batch `Add Folder` 使用
+  pywebview folder `create_file_dialog` API，避免 NiceGUI `WindowProxy` 沒有
+  `create_folder_dialog` 時 crash。
+- App/window icon assets 已放在 `assets/icons/`，runtime 和 Windows build script 會使用同一個
+  `.ico` icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
   onedir release 中的 bundled `assets`、`models`、`licenses` 會從 `_internal`
   讀取。
@@ -219,6 +234,8 @@ Denoiser/
     tk_r_em_LICENSE.txt
   assets/
     icons/
+      denoiser_icon.png
+      denoiser_icon.icns
       denoiser_icon.ico
   models/
     sfr_hrsem.onnx
@@ -294,11 +311,13 @@ App 有兩個 modes，使用 buttons 切換：
 
 Layout：
 
-- 左側：controls、file/folder selection、mode buttons、progress/status。
+- 左側：controls、file/folder selection、mode buttons、primary action，以及底部 status/warnings；
+  restore 或 batch 執行中會在底部 status area 顯示 animated progress bar。
 - 右側：
   - Single mode：選圖後顯示 raw-only preview；restore 後顯示 before/after
-    comparison。
-  - Batch mode：只顯示 progress/status；不顯示 image preview。
+    comparison，不顯示額外 heading。
+  - Batch mode：右側 heading 顯示 `Batch Restore`，下方顯示 progress 和 dense
+    scrollable per-file list；不顯示 image preview。
 
 ## Image comparison behavior
 
@@ -310,7 +329,8 @@ Layout：
 - Comparison 左側顯示 raw image，右側顯示 restored image。
 - Divider/handle 使用低白邊重量、高對比的 visual treatment，讓它在 dark、
   light、mid-gray grayscale 區域仍可辨識。
-- 拖曳 divider 會移動 comparison position。
+- 拖曳 divider 會移動 comparison position，且位置會限制在實際 fit-to-window image
+  area，不會跑到 preview frame 的空白 padding。
 - 點擊 image 任意位置會讓 slider 跳到該位置。
 - Preview display normalization 只允許用於螢幕顯示，不得影響 saved output files。
 
