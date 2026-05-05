@@ -40,6 +40,10 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
   workflow switch、四個 denoising mode buttons、primary action area 和 status area。
   NiceGUI restore parity 尚未完成。
+- NiceGUI Single image selection and raw-only preview：Single mode 會透過
+  NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
+  loading/selected/error status、overwrite warning、large-image warning，以及
+  fit-to-window raw-only preview；尚未啟動 restore。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
@@ -98,8 +102,8 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 
 尚未實作：
 
-- NiceGUI restore parity：Single image restore、Batch restore run、native file/folder
-  dialogs、before/after comparison 尚未接到 NiceGUI shell。
+- NiceGUI restore parity：Single image restore、Batch restore run、Batch native folder
+  dialog、before/after comparison 尚未接到 NiceGUI shell。
 - Windows release build verification。
 
 ## 第一版 MVS 範圍
