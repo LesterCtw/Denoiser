@@ -17,6 +17,18 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
 - Windows build/package guide：`docs/windows-build-and-package.md`
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
+## Local development launch
+
+在 macOS 或開發機上，可以直接用 `uv` 啟動目前的 NiceGUI native-window app：
+
+```bash
+uv sync
+uv run denoiser
+```
+
+這個方式用來做 local development smoke test。正式 end-user release 仍以 Windows
+PyInstaller packaged `Denoiser.exe` 為準。
+
 Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 
 - `docs/adr/0001-use-pyside6-for-windows-desktop-ui.md`

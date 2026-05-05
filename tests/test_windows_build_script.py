@@ -54,6 +54,14 @@ def test_windows_build_packages_nicegui_app_and_bundled_resources() -> None:
         assert option in script
 
 
+def test_windows_packaged_entrypoint_uses_nicegui_root_function() -> None:
+    script = Path("scripts/build_windows.ps1").read_text(encoding="utf-8")
+    shell_source = Path("src/denoiser/nicegui_shell.py").read_text(encoding="utf-8")
+
+    assert "src\\denoiser\\app.py" in script
+    assert "root=render_root" in shell_source
+
+
 def test_dm3_pyinstaller_probe_covers_required_import_chain() -> None:
     assert REQUIRED_IMPORTS == [
         "rsciio.digitalmicrograph",

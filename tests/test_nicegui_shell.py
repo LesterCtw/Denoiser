@@ -144,6 +144,9 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
 
     assert run_nicegui_native_window(ui_module=recording_ui) == 0
 
+    assert recording_ui.run_kwargs is not None
+    root = recording_ui.run_kwargs.pop("root")
+    assert callable(root)
     assert recording_ui.run_kwargs == {
         "title": "Denoiser",
         "native": True,
@@ -153,6 +156,12 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
         "reload": False,
         "show": False,
     }
+    assert recording_ui.labels == []
+
+    root()
+
+    assert "Denoiser" in recording_ui.labels
+    assert "Single image inspection" in recording_ui.labels
 
 
 def test_denoiser_main_launches_nicegui_native_shell(monkeypatch) -> None:

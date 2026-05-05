@@ -639,8 +639,11 @@ def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
     if ui_module is None:
         from nicegui import ui as ui_module
 
-    render_nicegui_shell(ui_module=ui_module)
+    def render_root() -> None:
+        render_nicegui_shell(ui_module=ui_module)
+
     ui_module.run(
+        root=render_root,
         title="Denoiser",
         native=True,
         window_size=(1280, 820),
