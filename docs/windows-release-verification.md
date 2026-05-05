@@ -60,6 +60,7 @@ python -m pip install "tifffile>=2024.8.10"
 python -m pip install "pyinstaller>=6.10"
 python -m pip install "pytest>=8"
 python -m pip install -e . --no-deps
+python .\scripts\check_dm3_pyinstaller_imports.py
 python -m pytest
 .\scripts\build_windows.ps1
 ```
@@ -67,12 +68,16 @@ python -m pytest
 預期結果：
 
 - Dependency install 每一步都完成；如果失敗，可以知道是哪個 package 失敗。
+- `python .\scripts\check_dm3_pyinstaller_imports.py` 完成，且輸出包含
+  `file_reader=rsciio.digitalmicrograph._api.file_reader` 和
+  `memmap_distributed=rsciio.utils._distributed.memmap_distributed`。
 - `python -m pytest` 全部通過。
 - `dist\Denoiser\Denoiser.exe` 存在。
 - Script 完成且沒有 errors。
 - Build script 使用 `assets\icons\denoiser_icon.ico` 作為 `Denoiser.exe` icon。
-- Build script 包含 `--hidden-import rsciio.utils._distributed`，讓 frozen app 可載入
-  RosettaSciIO DM3/DM4 reader 的 lazy-loaded dependency。
+- Build script 包含 `--hidden-import rsciio.utils._distributed`、`--hidden-import pint`
+  和 `--hidden-import yaml`，讓 frozen app 可載入 RosettaSciIO DM3/DM4 reader 的
+  lazy-loaded dependencies。
 
 ## Release Folder Inspection
 
@@ -188,6 +193,7 @@ Pass criteria：
 
 - Source ZIP/folder contains required project files: pass/fail
 - Individual dependency installs completed: pass/fail
+- DM3/DM4 PyInstaller import-chain probe passed: pass/fail
 - `python -m pytest` passed: pass/fail
 - Build script created `Denoiser.exe`: pass/fail
 - App icon appears on `Denoiser.exe` and app window: pass/fail

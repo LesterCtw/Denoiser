@@ -156,8 +156,22 @@ python -m pip install -e . --no-deps
   dependencies。
 
 `scripts\build_windows.ps1` 會在 PyInstaller command 中加入
-`--hidden-import rsciio.utils._distributed`。RosettaSciIO 的 DM3/DM4 reader 會用 lazy
-import 載入這個 module；一般 Python 執行可正常解析，但 frozen app 需要明確包含它。
+`--hidden-import rsciio.utils._distributed`、`--hidden-import pint` 和
+`--hidden-import yaml`。RosettaSciIO 的 DM3/DM4 reader 會用 lazy import 載入部分
+module；一般 Python 執行可正常解析，但 frozen app 需要明確包含它們。
+
+如果要先確認 DM3/DM4 reader 的 frozen import chain，可以執行：
+
+```powershell
+python .\scripts\check_dm3_pyinstaller_imports.py
+```
+
+Expected output 會包含：
+
+```text
+file_reader=rsciio.digitalmicrograph._api.file_reader
+memmap_distributed=rsciio.utils._distributed.memmap_distributed
+```
 
 如果你想快速批次安裝，也可以使用：
 
