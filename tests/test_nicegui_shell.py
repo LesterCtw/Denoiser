@@ -181,7 +181,7 @@ def test_project_dependencies_include_nicegui_native_window_stack() -> None:
 def test_readme_documents_nicegui_restore_status() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert "First runnable NiceGUI native-window inspector shell" in readme
+    assert "NiceGUI native-window inspector frontend" in readme
     assert "NiceGUI Single image selection and raw-only preview" in readme
     assert "NiceGUI Single restore and before/after comparison" in readme
     assert "NiceGUI Batch folder selection and restore run" in readme

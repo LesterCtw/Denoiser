@@ -12,6 +12,7 @@ from scripts.check_dm3_pyinstaller_imports import (
 def test_release_dependency_flow_uses_nicegui_native_window_not_pyside6() -> None:
     script = Path("scripts/build_windows.ps1").read_text(encoding="utf-8")
     requirements = Path("requirements.txt").read_text(encoding="utf-8")
+    lockfile = Path("uv.lock").read_text(encoding="utf-8").lower()
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     for dependency in ['"nicegui>=2.0"', '"pywebview>=5.0"']:
@@ -20,7 +21,13 @@ def test_release_dependency_flow_uses_nicegui_native_window_not_pyside6() -> Non
     assert 'python -m pip install "PySide6>=6.7"' not in script
     assert "PySide6" not in requirements
     assert "PySide6>=6.7" not in pyproject["project"]["dependencies"]
-    assert "PySide6>=6.7" in pyproject["project"]["optional-dependencies"]["dev"]
+    assert all(
+        "PySide6" not in dependency
+        for dependencies in pyproject["project"]["optional-dependencies"].values()
+        for dependency in dependencies
+    )
+    assert "pyside6" not in lockfile
+    assert "shiboken6" not in lockfile
 
 
 def test_windows_build_includes_rosettasciio_dm_lazy_import() -> None:

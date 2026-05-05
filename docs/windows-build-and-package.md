@@ -156,8 +156,7 @@ python -m pip install -e . --no-deps
   dependencies。
 
 Release app 走 NiceGUI native window stack，因此 release dependency flow 需要
-`nicegui` 和 `pywebview`。PySide6 只保留給舊 frontend 測試與開發支援，不是 NiceGUI
-release app 的必要 dependency。
+`nicegui` 和 `pywebview`。PySide6 不是 NiceGUI release app 的 dependency。
 
 `scripts\build_windows.ps1` 會在 PyInstaller command 中加入 `--collect-data nicegui`，
 確保 NiceGUI frontend 的 package data 會進入 frozen app。它也會加入
@@ -189,8 +188,8 @@ python -m pip install -e .
 
 ## Run Tests
 
-Release build 不需要 PySide6。Current source tree 仍保留舊 PySide6 frontend tests，所以
-如果你要在 build machine 跑完整 test suite，請另外安裝 dev extras：
+Release build 不需要 PySide6。如果你要在 build machine 跑完整 test suite，請另外安裝
+dev extras：
 
 ```powershell
 python -m pip install -e ".[dev]"

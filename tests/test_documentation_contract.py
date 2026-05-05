@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 
@@ -33,6 +34,8 @@ def test_readme_documents_nicegui_frontend_contract_and_preserves_mvs_scope() ->
     assert "standard Windows title bar" in readme
     assert "no PySide6 fallback" in readme
     assert "PyInstaller" in readme
+    assert "PySide6 application entry point 和基本 main window" not in readme
+    assert "PySide6 只保留給舊 frontend 測試與開發支援" not in readme
 
     for mvs_contract in [
         "Single",
@@ -48,7 +51,7 @@ def test_readme_documents_nicegui_frontend_contract_and_preserves_mvs_scope() ->
 def test_context_current_assumptions_use_nicegui_frontend_direction() -> None:
     context = Path("CONTEXT.md").read_text(encoding="utf-8")
 
-    assert "frontend direction is NiceGUI native window" in context
+    assert "implemented frontend is NiceGUI native window" in context
     assert "standard Windows title bar" in context
     assert "DESIGN.md" in context
     assert "no PySide6 fallback" in context
@@ -61,6 +64,33 @@ def test_original_pyside6_adr_points_to_superseding_nicegui_adr() -> None:
     ).read_text(encoding="utf-8")
 
     assert "## Status\n\nSuperseded by ADR 0004" in pyside6_adr
+
+
+def test_current_frontend_source_tree_has_no_legacy_pyside6_stack() -> None:
+    assert not Path("src/denoiser/ui").exists()
+
+    offenders: list[str] = []
+    for root in [Path("src"), Path("tests")]:
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    names = [alias.name for alias in node.names]
+                elif isinstance(node, ast.ImportFrom):
+                    names = [node.module or ""]
+                else:
+                    continue
+
+                if any(
+                    name == "PySide6"
+                    or name.startswith("PySide6.")
+                    or name == "denoiser.ui"
+                    or name.startswith("denoiser.ui.")
+                    for name in names
+                ):
+                    offenders.append(str(path))
+
+    assert offenders == []
 
 
 def test_windows_release_docs_describe_nicegui_package_flow() -> None:

@@ -9,10 +9,11 @@ using `tk_r_em` ONNX models.
 The repo now has a Python project skeleton, bundled ONNX models, third-party
 license notices, a tested image I/O boundary for first-release output naming
 and dtype/range preservation rules, a minimal ONNX inference wrapper with
-whole-image and patch-based restore paths, a working Single-image restore flow,
-the first Batch folder restore flow with cancellation and per-file failure
-isolation, a Single mode before/after compare view, and background Single image
-inspection so image selection can update the UI before preview loading finishes.
+whole-image and patch-based restore paths, a NiceGUI native-window frontend,
+a working Single-image restore flow, the first Batch folder restore flow with
+cancellation and per-file failure isolation, a Single mode before/after compare
+view, and background Single image inspection so image selection can update the
+UI before preview loading finishes.
 
 ## Glossary
 
@@ -39,9 +40,8 @@ inspection so image selection can update the UI before preview loading finishes.
 - Issues are tracked in GitHub Issues for `LesterCtw/Denoiser`.
 - Initial architectural decisions are recorded under `docs/adr/`.
 - First release targets Windows 10/11 laptops with CPU inference only.
-- The frontend direction is NiceGUI native window with the standard Windows title bar,
-  repo `DESIGN.md` as the visual source of truth, and no PySide6 fallback after
-  MVS parity migration.
+- The implemented frontend is NiceGUI native window with the standard Windows title bar,
+  repo `DESIGN.md` as the visual source of truth, and no PySide6 fallback.
 - The app will commit and bundle four `tk_r_em` ONNX models and run offline.
 - The app will use a minimal local engine wrapper instead of the full upstream
   `tk_r_em` package at runtime.

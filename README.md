@@ -24,19 +24,17 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 - `docs/adr/0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md`
 - `docs/adr/0004-use-nicegui-native-window-for-desktop-ui.md`
 
-ADR 0004 supersedes ADR 0001。Frontend direction 現在是 NiceGUI native
+ADR 0004 supersedes ADR 0001。Implemented frontend 現在是 NiceGUI native
 window，使用 standard Windows title bar，並以 repo `DESIGN.md` 作為 visual
-source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide6 fallback，
-避免長期維護兩套 public frontend stacks。Windows release path 仍維持 PyInstaller。
+source of truth。專案不再保留 PySide6 fallback，避免長期維護兩套 public frontend
+stacks。Windows release path 仍維持 PyInstaller。
 
 ## 目前實作狀態
 
 已實作：
 
 - `src/denoiser` package layout 的專案骨架。
-- PySide6 application entry point 和基本 main window；這是目前已存在的 implementation，
-  但 frontend direction 已改為 NiceGUI native window。
-- First runnable NiceGUI native-window inspector shell：啟動為 NiceGUI native window，
+- NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
   workflow switch、四個 denoising mode buttons、primary action area 和 status area。
   NiceGUI restore parity 已完成。
@@ -91,26 +89,24 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
   直接 import 的 `pint`、`yaml`，避免 PyInstaller frozen app 讀取 `.dm3` / `.dm4`
   時漏掉 runtime dependency。
 - Windows release dependency flow 已改為 NiceGUI native window stack：release build
-  安裝 `nicegui` 和 `pywebview`，不再要求 PySide6 作為 release app dependency；
-  PySide6 只保留給舊 frontend 測試與開發支援。Build script 也會用
-  `--collect-data nicegui` 包含 NiceGUI frontend package data。
+  安裝 `nicegui` 和 `pywebview`，不再要求 PySide6 作為 dependency。Build script
+  也會用 `--collect-data nicegui` 包含 NiceGUI frontend package data。
 - 提供 `scripts/check_dm3_pyinstaller_imports.py` 作為 DM3/DM4 PyInstaller import-chain
   probe；它會建立一個最小 frozen executable 並執行，確認 RosettaSciIO DM reader 的必要
   imports 在 frozen app 中可載入。
-- Focused tests：app icon loading、model mapping、missing model handling、whole-image inference、
+- Focused tests：app icon resource path、model mapping、missing model handling、whole-image inference、
   patch-based inference、Single restore workflow、Batch restore workflow、
-  Single UI restore behavior、Single restore processing status transition、
-  Single/Batch animated processing indicator behavior、
-  readable Single/Batch status output、Batch UI progress/status behavior、
-  unclipped Batch per-file status row labels、
+  NiceGUI Single UI restore behavior、Single restore processing status transition、
+  NiceGUI Single/Batch processing state behavior、
+  readable Single/Batch status output、NiceGUI Batch UI progress/status behavior、
+  unclipped Batch per-file status rows、
   Single image inspection behavior、output naming、Batch restore runner orchestration、
-  before/after compare view interaction、Single preview stale tooltip regression、
-  1024x1024 first-drag rendering smoke check、
+  NiceGUI before/after comparison state and rendering contract、
   denoised-folder rejection、
   unsupported-input rejection、multi-page TIFF rejection、Windows build script
   RosettaSciIO hidden import guard、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
-  Batch result row formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
+  Batch result row state formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
   uint16 TIFF clipping、
   conservative TIFF/PNG metadata preservation。
 
@@ -240,30 +236,18 @@ Denoiser/
       output_paths.py
       single_image_inspection.py
       workflow.py
-      ui/
-        __init__.py
-        batch_restore_runner.py
-        batch_result_row.py
-        compare_view.py
-        main_window.py
-        restore_task_runner.py
-        theme.py
   tests/
-    test_batch_restore_runner.py
-    test_batch_result_row.py
-    test_batch_ui.py
-    test_batch_workflow.py
+    test_app_entrypoint.py
     test_app_icon.py
-    test_compare_view.py
+    test_batch_workflow.py
+    test_documentation_contract.py
     test_engine.py
     test_image_io.py
     test_nicegui_shell.py
     test_output_paths.py
-    test_restore_task_runner.py
     test_single_image_inspection.py
-    test_single_ui.py
     test_single_workflow.py
-    test_ui_theme.py
+    test_windows_build_script.py
 ```
 
 ## Denoising modes
@@ -422,8 +406,8 @@ Cancellation：
 
 UI 應遵循 repo `DESIGN.md`，這是目前 frontend visual direction 的 source of truth。
 
-Frontend target 是 NiceGUI native window，並保留 standard Windows title bar。
-NiceGUI frontend 達到 MVS parity 後，專案應維持 no PySide6 fallback。
+Implemented frontend 是 NiceGUI native window，並保留 standard Windows title bar。
+專案維持 no PySide6 fallback。
 
 對這個 desktop tool 的實務解讀：
 

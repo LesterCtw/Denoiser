@@ -70,8 +70,7 @@ python -m pytest
 預期結果：
 
 - Dependency install 每一步都完成；如果失敗，可以知道是哪個 package 失敗。
-- Release dependency flow 不安裝 PySide6；PySide6 只會透過 dev extras 支援舊 frontend
-  tests。
+- Release dependency flow 不安裝 PySide6；NiceGUI 是唯一 frontend stack。
 - `python .\scripts\check_dm3_pyinstaller_imports.py` 完成，且輸出包含
   `file_reader=rsciio.digitalmicrograph._api.file_reader` 和
   `memmap_distributed=rsciio.utils._distributed.memmap_distributed`。
