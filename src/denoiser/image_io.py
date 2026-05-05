@@ -93,16 +93,7 @@ def image_dimensions(path: Path) -> tuple[int, int]:
     suffix = path.suffix.lower()
     if suffix in {".tif", ".tiff"}:
         with tifffile.TiffFile(path) as tif:
-            if len(tif.pages) > 1:
-                raise ImageFormatError(
-                    "Multi-page TIFF files are not supported. Use a single 2D image."
-                )
-            series = tif.series[0]
-            if series.axes not in {"YX", "YXS"}:
-                raise ImageFormatError(
-                    f"Stack-like TIFF data is not supported: {series.shape}. "
-                    "Use a single 2D image."
-                )
+            series = _single_2d_tiff_series(tif)
             return int(series.shape[0]), int(series.shape[1])
     if suffix in {".dm3", ".dm4"}:
         image = load_image(path)
@@ -177,19 +168,25 @@ def _load_pillow_image(path: Path) -> ImageData:
 
 def _load_tiff_image(path: Path) -> ImageData:
     with tifffile.TiffFile(path) as tif:
-        if len(tif.pages) > 1:
-            raise ImageFormatError(
-                "Multi-page TIFF files are not supported. Use a single 2D image."
-            )
-        series = tif.series[0]
-        if series.axes not in {"YX", "YXS"}:
-            raise ImageFormatError(
-                f"Stack-like TIFF data is not supported: {series.shape}. "
-                "Use a single 2D image."
-            )
+        series = _single_2d_tiff_series(tif)
         metadata = _safe_tiff_metadata(tif.pages[0].tags)
         array = series.asarray()
     return _image_data_from_array(path, array, SourceKind.STANDARD, metadata=metadata)
+
+
+def _single_2d_tiff_series(tif: tifffile.TiffFile) -> Any:
+    if len(tif.pages) > 1:
+        raise ImageFormatError(
+            "Multi-page TIFF files are not supported. Use a single 2D image."
+        )
+
+    series = tif.series[0]
+    if series.axes not in {"YX", "YXS"}:
+        raise ImageFormatError(
+            f"Stack-like TIFF data is not supported: {series.shape}. "
+            "Use a single 2D image."
+        )
+    return series
 
 
 def _load_dm_image(path: Path) -> ImageData:

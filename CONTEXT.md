@@ -26,6 +26,8 @@ UI before preview loading finishes.
 - **Batch restore run**: A single Batch mode execution over the selected folder.
   It should preserve per-file progress so the UI can show each restored,
   skipped, failed, or cancelled file as the run advances.
+- **Batch presentation mapping**: The UI-facing conversion from Batch restore
+  file results into per-file labels, detail text, and status badges.
 - **Bundled model inventory**: The first-release ONNX model set that must ship
   with Denoiser, including the mapping from each denoising mode to its required
   model filename and the missing-model checks used before release or runtime
@@ -33,6 +35,8 @@ UI before preview loading finishes.
 - **Single image inspection**: The Single mode selection step that validates an
   input image, prepares raw preview pixels, and reports whether large-image
   patch-based restore will be needed.
+- **Single preview presentation**: The UI-facing conversion from Single image
+  pixels into raw preview and before/after comparison render data.
 
 ## Current assumptions
 

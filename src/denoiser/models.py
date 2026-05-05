@@ -58,24 +58,16 @@ _MODEL_BY_MODE: dict[DenoiseMode, BundledModel] = {
 }
 
 
+def bundled_model_for(mode: DenoiseMode) -> BundledModel:
+    return _MODEL_BY_MODE[mode]
+
+
 def supported_denoise_modes() -> tuple[DenoiseMode, ...]:
     return tuple(bundled_model.mode for bundled_model in BUNDLED_MODELS)
 
 
 def default_denoise_mode() -> DenoiseMode:
     return BUNDLED_MODELS[0].mode
-
-
-def model_tag_for(mode: DenoiseMode) -> str:
-    return _MODEL_BY_MODE[mode].model_tag
-
-
-def mode_label_for(mode: DenoiseMode) -> str:
-    return _MODEL_BY_MODE[mode].ui_label
-
-
-def output_folder_for_mode(mode: DenoiseMode) -> str:
-    return _MODEL_BY_MODE[mode].output_folder
 
 
 def default_models_dir() -> Path:
@@ -85,12 +77,13 @@ def default_models_dir() -> Path:
 def model_path_for(mode: DenoiseMode, models_dir: Path | None = None) -> Path:
     if models_dir is None:
         models_dir = default_models_dir()
-    return models_dir / f"{model_tag_for(mode)}.onnx"
+    return models_dir / f"{bundled_model_for(mode).model_tag}.onnx"
 
 
 def missing_model_paths(models_dir: Path | None = None) -> list[Path]:
-    return [
-        model_path_for(mode, models_dir)
-        for mode in supported_denoise_modes()
-        if not model_path_for(mode, models_dir).is_file()
-    ]
+    missing_paths: list[Path] = []
+    for bundled_model in BUNDLED_MODELS:
+        model_path = model_path_for(bundled_model.mode, models_dir)
+        if not model_path.is_file():
+            missing_paths.append(model_path)
+    return missing_paths

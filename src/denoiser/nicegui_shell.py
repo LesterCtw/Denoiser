@@ -1,27 +1,29 @@
 from __future__ import annotations
 
-import base64
 import html
 import sys
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
-from typing import Any
-
-import numpy as np
-from PIL import Image
+from typing import Any, Protocol
 
 from denoiser.app_icon import (
     application_icon_path,
     application_icon_source_path,
     application_macos_icon_path,
 )
-from denoiser.models import DenoiseMode
+from denoiser.batch_presentation import BatchResultRow, batch_result_row
+from denoiser.models import DenoiseMode, supported_denoise_modes
 from denoiser.output_paths import output_path_for_input
+from denoiser.preview_presentation import (
+    ComparisonPreview,
+    RawPreview,
+    comparison_html,
+    comparison_preview,
+    raw_preview,
+    raw_preview_html,
+)
 from denoiser.single_image_inspection import SingleImageInspection, inspect_single_image
 from denoiser.workflow import (
-    BatchFileResult,
-    BatchFileStatus,
     BatchRestoreResult,
     BatchRestoreRun,
     SingleRestoreResult,
@@ -29,7 +31,7 @@ from denoiser.workflow import (
 )
 
 
-DENOISING_MODES = ("HRSTEM", "LRSTEM", "HRSEM", "LRSEM")
+DENOISING_MODES = tuple(mode.value for mode in supported_denoise_modes())
 WORKFLOWS = ("Single", "Batch")
 ACTIVE_BATCH_RESTORE_STATES = {"restoring", "cancelling"}
 SUPPORTED_IMAGE_FILE_DIALOG_FILTER = (
@@ -43,7 +45,7 @@ class InspectorShellSnapshot:
     regions: tuple[str, str]
     workflows: tuple[str, str]
     selected_workflow: str
-    denoising_modes: tuple[str, str, str, str]
+    denoising_modes: tuple[str, ...]
     selected_denoising_mode: str
     mode_button_states: dict[str, str]
     right_work_area_title: str
@@ -63,30 +65,10 @@ class InspectorShellSnapshot:
     design_tokens: dict[str, str]
 
 
-@dataclass(frozen=True)
-class RawPreview:
-    data_url: str
-    is_comparing: bool = False
+class NativePathSelector(Protocol):
+    async def select_single_image_path(self) -> Path | None: ...
 
-
-@dataclass(frozen=True)
-class ComparisonPreview:
-    raw_data_url: str
-    restored_data_url: str
-    divider_position: float = 0.5
-    raw_side: str = "left"
-    restored_side: str = "right"
-    supports_click_to_jump: bool = True
-    supports_drag: bool = True
-
-
-@dataclass(frozen=True)
-class BatchResultRow:
-    filename: str
-    status: BatchFileStatus
-    status_label: str
-    detail: str
-    output_path: Path | None = None
+    async def select_batch_folder_path(self) -> Path | None: ...
 
 
 class NiceGuiNativePathSelector:
@@ -190,7 +172,7 @@ class InspectorShellState:
 
     def apply_batch_restore_step(self, step: Any) -> None:
         self.batch_file_results += tuple(
-            _batch_result_row(file_result) for file_result in step.file_results
+            batch_result_row(file_result) for file_result in step.file_results
         )
         self.batch_progress_text = f"{step.completed_count} of {step.total_count} files"
         if step.final_result is not None:
@@ -258,7 +240,7 @@ class InspectorShellState:
         if inspection.requires_patch_based_restore:
             warnings.append("Large images may take several minutes.")
         self.warnings = tuple(warnings)
-        self.raw_preview = RawPreview(data_url=_raw_preview_data_url(inspection.preview_pixels))
+        self.raw_preview = raw_preview(inspection.preview_pixels)
         self.comparison_preview = None
 
     def begin_single_restore(self) -> None:
@@ -300,7 +282,7 @@ class InspectorShellState:
         )
         self.warnings = ()
         self.raw_preview = None
-        self.comparison_preview = _comparison_preview(
+        self.comparison_preview = comparison_preview(
             result.raw_pixels,
             result.restored_pixels,
         )
@@ -387,7 +369,7 @@ def render_nicegui_shell(
     *,
     state: InspectorShellState | None = None,
     ui_module: Any | None = None,
-    path_selector: Any | None = None,
+    path_selector: NativePathSelector | None = None,
     engine: Any | None = None,
     inspect_single_image: Any = inspect_single_image,
     restore_single_image: Any = restore_single_image,
@@ -596,11 +578,11 @@ def render_nicegui_shell(
                     "denoiser-batch-results"
                 )
             elif current.comparison_preview is not None:
-                ui_module.html(_comparison_html(current.comparison_preview)).classes(
+                ui_module.html(comparison_html(current.comparison_preview)).classes(
                     "denoiser-preview"
                 )
             elif current.raw_preview is not None:
-                ui_module.html(_raw_preview_html(current.raw_preview)).classes(
+                ui_module.html(raw_preview_html(current.raw_preview)).classes(
                     "denoiser-preview"
                 )
             else:
@@ -946,21 +928,18 @@ def _shell_css(tokens: dict[str, str]) -> str:
         flex: 1 1 auto;
         align-self: stretch;
         min-height: 0;
-        height: 100%;
         width: 100%;
       }}
       nicegui-html.denoiser-preview {{
         display: block !important;
         align-self: stretch !important;
-        min-height: 0 !important;
-        height: 100% !important;
         width: 100% !important;
       }}
       .denoiser-preview-frame {{
         position: relative;
         box-sizing: border-box;
-        width: 100%;
-        height: 100%;
+        width: calc(100vw - 360px);
+        height: calc(100vh - 54px);
         min-height: 0;
         overflow: hidden;
         border: 1px solid {tokens["hairline"]};
@@ -1258,80 +1237,6 @@ def _overwrite_output_path(path: Path, denoising_mode: str) -> Path:
     return output_path_for_input(path, DenoiseMode(denoising_mode))
 
 
-def _raw_preview_data_url(preview_pixels: np.ndarray) -> str:
-    pixels = np.asarray(preview_pixels)
-    if pixels.ndim != 2:
-        raise ValueError(f"Raw preview expects 2D pixels, got shape {pixels.shape}.")
-
-    display = pixels.astype(np.float32, copy=False)
-    minimum = float(np.nanmin(display))
-    maximum = float(np.nanmax(display))
-    if maximum > minimum:
-        display = (display - minimum) / (maximum - minimum)
-    else:
-        display = np.zeros_like(display, dtype=np.float32)
-    display_uint8 = np.clip(np.rint(display * 255), 0, 255).astype(np.uint8)
-
-    buffer = BytesIO()
-    Image.fromarray(display_uint8).save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
-
-
-def _comparison_preview(raw_pixels: np.ndarray, restored_pixels: np.ndarray) -> ComparisonPreview:
-    return ComparisonPreview(
-        raw_data_url=_raw_preview_data_url(raw_pixels),
-        restored_data_url=_raw_preview_data_url(restored_pixels),
-    )
-
-
-def _raw_preview_html(preview: RawPreview) -> str:
-    source = html.escape(preview.data_url, quote=True)
-    return f"""
-    <div class="denoiser-preview-frame denoiser-preview-frame-active denoiser-raw-preview">
-      <img class="denoiser-preview-image" src="{source}" alt="Raw image">
-    </div>
-    """
-
-
-def _comparison_html(preview: ComparisonPreview) -> str:
-    divider_percent = preview.divider_position * 100
-    raw_source = html.escape(preview.raw_data_url, quote=True)
-    restored_source = html.escape(preview.restored_data_url, quote=True)
-    return f"""
-    <div class="denoiser-preview-frame denoiser-preview-frame-active denoiser-comparison"
-         style="--divider-position: {preview.divider_position}; --divider-frame-position: {divider_percent}%"
-         data-divider="{preview.divider_position}"
-         data-raw-side="{preview.raw_side}"
-         data-restored-side="{preview.restored_side}"
-         role="slider"
-         tabindex="0"
-         aria-label="Before after comparison divider"
-         aria-valuemin="0"
-         aria-valuemax="100"
-         aria-valuenow="{divider_percent}"
-         onkeydown="window.denoiserMoveComparisonDividerWithKey(this, event)"
-         onpointerdown="
-           this.setPointerCapture(event.pointerId);
-           window.denoiserSetComparisonDivider(this, event);
-         "
-         onpointermove="
-           if (event.buttons) window.denoiserSetComparisonDivider(this, event);
-         ">
-      <img class="denoiser-comparison-raw"
-           src="{raw_source}"
-           alt="Raw image"
-           onload="window.denoiserRefreshComparisonDivider(this.closest('.denoiser-comparison'))">
-      <img class="denoiser-comparison-restored"
-           src="{restored_source}"
-           alt="Restored image"
-           onload="window.denoiserRefreshComparisonDivider(this.closest('.denoiser-comparison'))">
-      <div class="denoiser-comparison-divider"></div>
-      <div class="denoiser-comparison-hit-target"></div>
-    </div>
-    """
-
-
 def _batch_results_html(snapshot: InspectorShellSnapshot) -> str:
     rows = "\n".join(_batch_result_html(row) for row in snapshot.batch_file_results)
     if rows:
@@ -1362,34 +1267,6 @@ def _batch_result_html(row: BatchResultRow) -> str:
       </div>
     </div>
     """
-
-
-def _batch_result_row(file_result: BatchFileResult) -> BatchResultRow:
-    return BatchResultRow(
-        filename=file_result.source_path.name,
-        status=file_result.status,
-        status_label=_batch_status_label(file_result.status),
-        detail=_readable_batch_detail(file_result),
-        output_path=file_result.output_path,
-    )
-
-
-def _batch_status_label(status: BatchFileStatus) -> str:
-    if status is BatchFileStatus.RESTORED:
-        return "Restored"
-    if status is BatchFileStatus.FAILED:
-        return "Failed"
-    if status is BatchFileStatus.CANCELLED:
-        return "Cancelled"
-    return "Skipped"
-
-
-def _readable_batch_detail(file_result: BatchFileResult) -> str:
-    if file_result.status is BatchFileStatus.RESTORED:
-        if file_result.output_path is None:
-            return "Saved output"
-        return f"Saved to {file_result.output_path.parent.name}/{file_result.output_path.name}"
-    return file_result.message
 
 
 def _load_design_tokens() -> dict[str, str]:

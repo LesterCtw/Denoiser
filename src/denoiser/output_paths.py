@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from denoiser.models import DenoiseMode, output_folder_for_mode
+from denoiser.models import DenoiseMode, bundled_model_for
 
 
 def is_inside_denoised_folder(path: Path) -> bool:
@@ -19,5 +19,5 @@ def output_suffix_for_input(path: Path) -> str:
 
 
 def output_path_for_input(path: Path, mode: DenoiseMode) -> Path:
-    output_dir = path.parent / output_folder_for_mode(mode)
+    output_dir = path.parent / bundled_model_for(mode).output_folder
     return output_dir / f"{path.stem}{output_suffix_for_input(path)}"

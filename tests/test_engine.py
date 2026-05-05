@@ -10,14 +10,13 @@ from denoiser.engine import (
     should_use_patch_based,
 )
 from denoiser.models import (
+    BUNDLED_MODELS,
     DenoiseMode,
+    bundled_model_for,
     default_models_dir,
     default_denoise_mode,
     missing_model_paths,
-    mode_label_for,
-    model_tag_for,
     model_path_for,
-    output_folder_for_mode,
     supported_denoise_modes,
 )
 
@@ -32,24 +31,25 @@ def test_bundled_model_inventory_matches_mvs_modes() -> None:
         DenoiseMode.LRSEM,
     )
     assert default_denoise_mode() is DenoiseMode.HRSTEM
-    assert [mode_label_for(mode) for mode in modes] == [
+    assert [bundled_model.ui_label for bundled_model in BUNDLED_MODELS] == [
         "HRSTEM",
         "LRSTEM",
         "HRSEM",
         "LRSEM",
     ]
-    assert [model_tag_for(mode) for mode in modes] == [
+    assert [bundled_model.model_tag for bundled_model in BUNDLED_MODELS] == [
         "sfr_hrstem",
         "sfr_lrstem",
         "sfr_hrsem",
         "sfr_lrsem",
     ]
-    assert [output_folder_for_mode(mode) for mode in modes] == [
+    assert [bundled_model.output_folder for bundled_model in BUNDLED_MODELS] == [
         "denoised_HRSTEM",
         "denoised_LRSTEM",
         "denoised_HRSEM",
         "denoised_LRSEM",
     ]
+    assert bundled_model_for(DenoiseMode.LRSEM).model_tag == "sfr_lrsem"
 
 
 def test_missing_model_paths_reports_missing_required_models(tmp_path) -> None:

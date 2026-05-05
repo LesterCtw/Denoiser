@@ -92,8 +92,12 @@ stacks。Windows release path 仍維持 PyInstaller。
   animated processing indicator、success/failure 狀態。
 - Batch mode UI：folder selection、共用 mode buttons、Start Batch、progress、
   animated processing indicator、可捲動的 per-file status list。
-- Batch mode status row rendering 已集中在 dedicated UI module，讓 per-file
+- Batch mode status row rendering 已集中在 dedicated presentation module，讓 per-file
   status label、detail text、badge object names 的規則有單一維護位置。
+- Single preview encoding/rendering 已集中在 dedicated presentation module，讓 raw preview
+  與 before/after comparison 的 HTML contract 不再散落在 NiceGUI shell。
+- Native file/folder selection 和 ONNX session factory 已有明確 seam，test adapters
+  可替換 NiceGUI/pywebview dialogs 與 ONNX Runtime session。
 - Batch cancellation between files、per-file failure isolation，以及 final
   restored/failed/skipped/cancelled summary counts。
 - Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
@@ -103,6 +107,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   thread 執行 preview inspection，讓 UI 可以先顯示 loading/status，不必等 image
   load 和 large-image 判斷完成。
 - 第一版支援格式的 image I/O boundary。
+- TIFF single-2D validation 已集中在 image I/O boundary，同一組 multi-page/stack-like
+  rejection rules 同時服務 image dimensions inspection 和 full image loading。
 - 使用獨立 output path rules module 管理 `denoised_MODE` folders、output suffix、
   overwrite target，以及 `denoised_*` input rejection。
 - Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
@@ -123,6 +129,7 @@ stacks。Windows release path 仍維持 PyInstaller。
   imports 在 frozen app 中可載入。
 - Focused tests：app icon resource path、model mapping、missing model handling、whole-image inference、
   patch-based inference、Single restore workflow、Batch restore workflow、
+  Batch presentation mapping、Single preview presentation mapping、
   NiceGUI Single UI restore behavior、Single restore processing status transition、
   NiceGUI Single/Batch processing state behavior、
   readable Single/Batch status output、NiceGUI Batch UI progress/status behavior、
@@ -258,22 +265,26 @@ Denoiser/
       __main__.py
       app.py
       app_icon.py
+      batch_presentation.py
       engine.py
       image_io.py
       models.py
       nicegui_shell.py
       output_paths.py
+      preview_presentation.py
       single_image_inspection.py
       workflow.py
   tests/
     test_app_entrypoint.py
     test_app_icon.py
+    test_batch_presentation.py
     test_batch_workflow.py
     test_documentation_contract.py
     test_engine.py
     test_image_io.py
     test_nicegui_shell.py
     test_output_paths.py
+    test_preview_presentation.py
     test_single_image_inspection.py
     test_single_workflow.py
     test_windows_build_script.py

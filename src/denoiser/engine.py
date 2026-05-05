@@ -32,6 +32,10 @@ class DenoiseSession(Protocol):
     def run(self, input_tensor: np.ndarray) -> np.ndarray: ...
 
 
+class SessionFactory(Protocol):
+    def __call__(self, model_path: Path) -> DenoiseSession: ...
+
+
 def should_use_patch_based(height: int, width: int, settings: InferenceSettings) -> bool:
     """Return whether an image should use patch-based inference."""
 
@@ -44,7 +48,7 @@ class OnnxDenoiser:
     def __init__(
         self,
         models_dir: Path | None = None,
-        session_factory: type[DenoiseSession] | None = None,
+        session_factory: SessionFactory | None = None,
         settings: InferenceSettings | None = None,
     ) -> None:
         if models_dir is None:
