@@ -36,6 +36,10 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 - `src/denoiser` package layout 的專案骨架。
 - PySide6 application entry point 和基本 main window；這是目前已存在的 implementation，
   但 frontend direction 已改為 NiceGUI native window。
+- First runnable NiceGUI native-window inspector shell：啟動為 NiceGUI native window，
+  顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
+  workflow switch、四個 denoising mode buttons、primary action area 和 status area。
+  NiceGUI restore parity 尚未完成。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
@@ -94,7 +98,8 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 
 尚未實作：
 
-- NiceGUI native-window frontend migration。
+- NiceGUI restore parity：Single image restore、Batch restore run、native file/folder
+  dialogs、before/after comparison 尚未接到 NiceGUI shell。
 - Windows release build verification。
 
 ## 第一版 MVS 範圍
@@ -215,6 +220,7 @@ Denoiser/
       engine.py
       image_io.py
       models.py
+      nicegui_shell.py
       output_paths.py
       single_image_inspection.py
       workflow.py
@@ -235,6 +241,7 @@ Denoiser/
     test_compare_view.py
     test_engine.py
     test_image_io.py
+    test_nicegui_shell.py
     test_output_paths.py
     test_restore_task_runner.py
     test_single_image_inspection.py

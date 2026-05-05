@@ -2,26 +2,11 @@
 
 from __future__ import annotations
 
-import sys
+from denoiser.nicegui_shell import run_nicegui_native_window
 
 
 def main() -> int:
-    from PySide6.QtWidgets import QApplication
-
-    from denoiser.app_icon import load_application_icon
-    from denoiser.ui.main_window import MainWindow
-
-    app = QApplication(sys.argv)
-    app.setApplicationName("Denoiser")
-    app.setOrganizationName("Denoiser")
-    icon = load_application_icon()
-    if not icon.isNull():
-        app.setWindowIcon(icon)
-
-    window = MainWindow()
-    window.show()
-
-    return app.exec()
+    return run_nicegui_native_window()
 
 
 if __name__ == "__main__":

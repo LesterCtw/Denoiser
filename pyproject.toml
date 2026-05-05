@@ -9,9 +9,11 @@ description = "Windows desktop denoising tool for SEM/STEM FA images"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "nicegui>=2.0",
   "numpy>=1.26",
   "onnxruntime>=1.21",
   "Pillow>=10",
+  "pywebview>=5.0",
   "PySide6>=6.7",
   "rosettasciio>=0.13",
   "tifffile>=2024.8.10",
