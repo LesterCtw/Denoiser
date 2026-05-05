@@ -25,6 +25,7 @@ from denoiser.workflow import (
 
 DENOISING_MODES = ("HRSTEM", "LRSTEM", "HRSEM", "LRSEM")
 WORKFLOWS = ("Single", "Batch")
+ACTIVE_BATCH_RESTORE_STATES = {"restoring", "cancelling"}
 SUPPORTED_IMAGE_FILE_DIALOG_FILTER = (
     "Supported images (*.tif;*.tiff;*.png;*.jpg;*.jpeg;*.dm3;*.dm4)",
 )
@@ -172,6 +173,11 @@ class InspectorShellState:
         self.batch_file_results = ()
         self.batch_progress_text = f"{run.completed_count} of {run.total_count} files"
         self.status = "Batch restoring..."
+
+    def request_batch_cancellation(self) -> None:
+        if self.batch_restore_state == "restoring":
+            self.batch_restore_state = "cancelling"
+            self.status = "Cancelling batch..."
 
     def apply_batch_restore_step(self, step: Any) -> None:
         self.batch_file_results += tuple(
@@ -394,6 +400,7 @@ def render_nicegui_shell(
     snapshot = state.snapshot()
     ui_module.add_head_html(_shell_css(snapshot.design_tokens))
     refreshables: list[Any] = []
+    active_batch_run: BatchRestoreRun | None = None
 
     def refresh_shell() -> None:
         for refreshable in refreshables:
@@ -434,6 +441,38 @@ def render_nicegui_shell(
                     else "denoiser-mode-button"
                 )
                 _disable_when_restoring(button, current)
+
+    def render_path_controls() -> None:
+        current = state.snapshot()
+        if current.selected_workflow == "Batch":
+            folder_button = ui_module.button("Add Folder", on_click=choose_batch_folder)
+            folder_button.classes("denoiser-secondary-action")
+            _disable_when_restoring(folder_button, current)
+            return
+
+        open_button = ui_module.button("Open Image", on_click=choose_single_image)
+        open_button.classes("denoiser-secondary-action")
+        _disable_when_restoring(open_button, current)
+
+    def render_action_controls() -> None:
+        current = state.snapshot()
+        if current.selected_workflow == "Batch":
+            if current.batch_restore_state in ACTIVE_BATCH_RESTORE_STATES:
+                cancel_button = ui_module.button("Cancel", on_click=cancel_selected_batch)
+                cancel_button.classes("denoiser-secondary-action")
+                if current.batch_restore_state == "cancelling":
+                    cancel_button.props("disable")
+                return
+
+            action_label = "Start Batch"
+            action_handler = restore_selected_batch
+        else:
+            action_label = current.primary_action
+            action_handler = restore_selected_image
+
+        action_button = ui_module.button(action_label, on_click=action_handler)
+        action_button.classes("denoiser-primary-action")
+        _disable_when_restoring(action_button, current)
 
     async def choose_single_image() -> None:
         path = await path_selector.select_single_image_path()
@@ -476,7 +515,15 @@ def render_nicegui_shell(
             state.finish_single_restore(result)
         refresh_shell()
 
+    async def cancel_selected_batch() -> None:
+        if active_batch_run is None:
+            return
+        active_batch_run.cancel()
+        state.request_batch_cancellation()
+        refresh_shell()
+
     async def restore_selected_batch() -> None:
+        nonlocal active_batch_run
         if state.selected_batch_folder_path is None:
             state.restore_selected_batch_folder(engine)
             refresh_shell()
@@ -487,14 +534,18 @@ def render_nicegui_shell(
             DenoiseMode(state.selected_denoising_mode),
             engine,
         )
+        active_batch_run = run
         state.begin_batch_restore_run(run)
         refresh_shell()
-        while True:
-            step = await restore_runner(run.next_step)
-            state.apply_batch_restore_step(step)
-            refresh_shell()
-            if step.final_result is not None:
-                return
+        try:
+            while True:
+                step = await restore_runner(run.next_step)
+                state.apply_batch_restore_step(step)
+                refresh_shell()
+                if step.final_result is not None:
+                    return
+        finally:
+            active_batch_run = None
 
     def render_work_area() -> None:
         current = state.snapshot()
@@ -524,9 +575,13 @@ def render_nicegui_shell(
                 ).classes("denoiser-preview")
 
     workflow_controls = _refreshable(ui_module, render_workflow_controls)
+    path_controls = _refreshable(ui_module, render_path_controls)
     mode_controls = _refreshable(ui_module, render_mode_controls)
+    action_controls = _refreshable(ui_module, render_action_controls)
     work_area = _refreshable(ui_module, render_work_area)
-    refreshables.extend([workflow_controls, mode_controls, work_area])
+    refreshables.extend(
+        [workflow_controls, path_controls, mode_controls, action_controls, work_area]
+    )
 
     with ui_module.column().classes("denoiser-shell"):
         with ui_module.row().classes("denoiser-inspector"):
@@ -535,32 +590,12 @@ def render_nicegui_shell(
 
                 workflow_controls()
 
-                if state.snapshot().selected_workflow == "Batch":
-                    folder_button = ui_module.button("Add Folder", on_click=choose_batch_folder)
-                    folder_button.classes("denoiser-secondary-action")
-                    _disable_when_restoring(folder_button, state.snapshot())
-                else:
-                    open_button = ui_module.button("Open Image", on_click=choose_single_image)
-                    open_button.classes("denoiser-secondary-action")
-                    _disable_when_restoring(open_button, state.snapshot())
+                path_controls()
 
                 ui_module.label("Denoising mode").classes("denoiser-section-label")
                 mode_controls()
 
-                current = state.snapshot()
-                action_label = (
-                    "Start Batch"
-                    if current.selected_workflow == "Batch"
-                    else snapshot.primary_action
-                )
-                action_handler = (
-                    restore_selected_batch
-                    if current.selected_workflow == "Batch"
-                    else restore_selected_image
-                )
-                restore_button = ui_module.button(action_label, on_click=action_handler)
-                restore_button.classes("denoiser-primary-action")
-                _disable_when_restoring(restore_button, state.snapshot())
+                action_controls()
                 ui_module.label(snapshot.status).classes("denoiser-status")
 
             work_area()
@@ -587,7 +622,10 @@ def _refreshable(ui_module: Any, render: Any) -> Any:
 
 
 def _disable_when_restoring(element: Any, snapshot: InspectorShellSnapshot) -> None:
-    if not snapshot.single_controls_enabled:
+    if (
+        not snapshot.single_controls_enabled
+        or snapshot.batch_restore_state in ACTIVE_BATCH_RESTORE_STATES
+    ):
         element.props("disable")
 
 

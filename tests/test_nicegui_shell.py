@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -630,6 +632,79 @@ async def test_batch_buttons_select_folder_and_start_batch_restore(
     assert snapshot.selected_batch_folder_path == tmp_path
     assert snapshot.batch_restore_state == "complete"
     assert snapshot.batch_progress_text == "1 of 1 files"
+
+
+@pytest.mark.anyio
+async def test_batch_cancel_button_cancels_remaining_files_between_restores(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+    from denoiser.workflow import BatchFileStatus
+
+    for filename in ("a_first.tif", "b_second.tif", "c_third.tif"):
+        tifffile.imwrite(
+            tmp_path / filename,
+            np.array([[1, 2], [3, 4]], dtype=np.uint8),
+        )
+
+    restore_started = threading.Event()
+    finish_restore = threading.Event()
+
+    class FakeEngine:
+        restore_count = 0
+
+        def restore(self, pixels, mode):  # noqa: ANN001
+            self.restore_count += 1
+            restore_started.set()
+            finish_restore.wait(timeout=5)
+            return pixels + self.restore_count
+
+    async def restore_runner(callback, *args):  # noqa: ANN001, ANN002
+        return await asyncio.to_thread(callback, *args)
+
+    state = InspectorShellState(selected_workflow="Batch")
+    state.select_batch_folder_path(tmp_path)
+    recording_ui = RecordingUi()
+    engine = FakeEngine()
+    render_nicegui_shell(
+        ui_module=recording_ui,
+        state=state,
+        engine=engine,
+        restore_runner=restore_runner,
+    )
+
+    batch_task = asyncio.create_task(recording_ui.button_actions["Start Batch"]())
+    assert await asyncio.to_thread(restore_started.wait, 5)
+
+    assert state.snapshot().batch_restore_state == "restoring"
+    assert "Cancel" in recording_ui.buttons
+
+    await recording_ui.button_actions["Cancel"]()
+    finish_restore.set()
+    await batch_task
+
+    output = tmp_path / "denoised_HRSTEM" / "a_first.tif"
+    snapshot = state.snapshot()
+    assert output.is_file()
+    assert engine.restore_count == 1
+    assert snapshot.batch_restore_state == "complete"
+    assert snapshot.batch_progress_text == "3 of 3 files"
+    assert (
+        "Batch complete: 1 restored, 0 failed, 0 skipped, 2 cancelled."
+        in snapshot.status
+    )
+    assert [row.status for row in snapshot.batch_file_results] == [
+        BatchFileStatus.RESTORED,
+        BatchFileStatus.CANCELLED,
+        BatchFileStatus.CANCELLED,
+    ]
+    assert [row.detail for row in snapshot.batch_file_results[1:]] == [
+        "Not processed",
+        "Not processed",
+    ]
+    assert "Start Batch" in recording_ui.buttons
+    assert "disable" not in recording_ui.button_props["Start Batch"]
+    assert "disable" not in recording_ui.button_props["Add Folder"]
 
 
 @pytest.mark.anyio

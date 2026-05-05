@@ -52,7 +52,8 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 - NiceGUI Batch folder selection and restore run：Batch mode 會透過 NiceGUI
   native folder dialog 選擇 folder，使用現有 Batch restore workflow 執行
   non-recursive restore run，顯示 progress、restored/skipped/failed per-file rows，
-  以及 final restored/failed/skipped/cancelled summary。
+  active run 的 Cancel action、cancelled per-file rows，以及 final
+  restored/failed/skipped/cancelled summary。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
