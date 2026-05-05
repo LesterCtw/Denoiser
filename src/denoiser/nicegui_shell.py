@@ -1043,6 +1043,12 @@ def _shell_css(tokens: dict[str, str]) -> str:
         border-radius: 8px;
         background: {tokens["surface-1"]};
       }}
+      .denoiser-batch-empty {{
+        color: {tokens["ink-subtle"]};
+        font-size: 13px;
+        line-height: 1.45;
+        padding: 2px 0;
+      }}
       .denoiser-batch-row {{
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1324,12 +1330,14 @@ def _comparison_html(preview: ComparisonPreview) -> str:
 
 def _batch_results_html(snapshot: InspectorShellSnapshot) -> str:
     rows = "\n".join(_batch_result_html(row) for row in snapshot.batch_file_results)
-    if not rows:
-        rows = '<div class="denoiser-batch-empty">No Batch results yet.</div>'
+    if rows:
+        body = f'<div class="denoiser-batch-list">{rows}</div>'
+    else:
+        body = '<div class="denoiser-batch-empty">No files processed yet.</div>'
     return f"""
     <div class="denoiser-batch-results">
       <div class="denoiser-batch-progress">{snapshot.batch_progress_text}</div>
-      <div class="denoiser-batch-list">{rows}</div>
+      {body}
     </div>
     """
 

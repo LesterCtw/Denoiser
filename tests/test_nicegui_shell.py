@@ -591,6 +591,24 @@ def test_nicegui_shell_render_shows_batch_progress_rows_and_readable_badges() ->
     assert "min-height: 42px" in recording_ui.head_html[0]
 
 
+def test_nicegui_shell_render_shows_unframed_empty_batch_state() -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    recording_ui = RecordingUi()
+    render_nicegui_shell(
+        ui_module=recording_ui,
+        state=InspectorShellState(selected_workflow="Batch"),
+        engine=object(),
+    )
+
+    batch_html = "\n".join(recording_ui.labels)
+    assert "0 of 0 files" in batch_html
+    assert "No files processed yet." in batch_html
+    assert "denoiser-batch-empty" in batch_html
+    assert "denoiser-batch-list" not in batch_html
+    assert "No Batch results yet." not in batch_html
+
+
 @pytest.mark.anyio
 async def test_restore_button_runs_selected_single_restore(
     tmp_path: Path,
