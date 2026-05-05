@@ -176,13 +176,14 @@ def test_project_dependencies_include_nicegui_native_window_stack() -> None:
         assert dependency in requirements
 
 
-def test_readme_documents_nicegui_single_restore_status() -> None:
+def test_readme_documents_nicegui_restore_status() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
     assert "First runnable NiceGUI native-window inspector shell" in readme
     assert "NiceGUI Single image selection and raw-only preview" in readme
     assert "NiceGUI Single restore and before/after comparison" in readme
-    assert "NiceGUI Batch restore parity 尚未完成" in readme
+    assert "NiceGUI Batch folder selection and restore run" in readme
+    assert "NiceGUI restore parity 已完成" in readme
 
 
 def test_single_image_selection_shows_loading_then_raw_preview(tmp_path: Path) -> None:
@@ -409,6 +410,147 @@ def test_single_restore_failure_returns_controls_to_usable_state(
     assert snapshot.raw_preview is not None
 
 
+def test_batch_folder_selection_stores_selected_folder_path(tmp_path: Path) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    state = InspectorShellState()
+    state.select_batch_folder_path(tmp_path)
+
+    snapshot = state.snapshot()
+    assert snapshot.selected_workflow == "Batch"
+    assert snapshot.selected_batch_folder_path == tmp_path
+    assert snapshot.batch_restore_state == "folder-selected"
+    assert snapshot.status == f"Batch folder: {tmp_path.name}"
+    assert snapshot.batch_progress_text == "0 of 0 files"
+
+
+def test_batch_restore_prompts_for_folder_before_running_engine() -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    class EngineShouldNotRun:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            raise AssertionError("Engine should not run without a Batch folder")
+
+    state = InspectorShellState(selected_workflow="Batch")
+    state.restore_selected_batch_folder(EngineShouldNotRun())
+
+    snapshot = state.snapshot()
+    assert snapshot.status == "Add a folder before starting Batch."
+    assert snapshot.batch_restore_state == "idle"
+
+
+def test_batch_restore_writes_output_and_lists_restored_and_skipped_files(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+    from denoiser.workflow import BatchFileStatus
+
+    supported = tmp_path / "wafer.tif"
+    unsupported = tmp_path / "notes.txt"
+    nested_dir = tmp_path / "nested"
+    nested_dir.mkdir()
+    nested = nested_dir / "nested.tif"
+    tifffile.imwrite(supported, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+    unsupported.write_text("skip me")
+    tifffile.imwrite(nested, np.array([[99]], dtype=np.uint8))
+
+    class FakeEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            from denoiser.models import DenoiseMode
+
+            assert mode is DenoiseMode.HRSEM
+            return pixels + 4
+
+    state = InspectorShellState(selected_denoising_mode="HRSEM")
+    state.select_batch_folder_path(tmp_path)
+    state.restore_selected_batch_folder(FakeEngine())
+
+    output = tmp_path / "denoised_HRSEM" / "wafer.tif"
+    snapshot = state.snapshot()
+    assert output.is_file()
+    assert not (tmp_path / "nested" / "denoised_HRSEM" / "nested.tif").exists()
+    assert snapshot.batch_restore_state == "complete"
+    assert snapshot.batch_progress_text == "2 of 2 files"
+    assert "Batch complete: 1 restored, 0 failed, 1 skipped, 0 cancelled." in snapshot.status
+    assert [row.status for row in snapshot.batch_file_results] == [
+        BatchFileStatus.SKIPPED,
+        BatchFileStatus.RESTORED,
+    ]
+    assert [row.filename for row in snapshot.batch_file_results] == [
+        "notes.txt",
+        "wafer.tif",
+    ]
+
+
+def test_batch_restore_marks_failed_files_and_keeps_advancing(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+    from denoiser.workflow import BatchFileStatus
+
+    failing = tmp_path / "a_fails.tif"
+    later = tmp_path / "b_later.tif"
+    tifffile.imwrite(failing, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+    tifffile.imwrite(later, np.array([[1, 2], [3, 4]], dtype=np.uint8))
+
+    class PartlyFailingEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            if pixels[0, 0] == 10:
+                raise RuntimeError("model crashed")
+            return pixels + 1
+
+    state = InspectorShellState(selected_denoising_mode="HRSTEM")
+    state.select_batch_folder_path(tmp_path)
+    state.restore_selected_batch_folder(PartlyFailingEngine())
+
+    snapshot = state.snapshot()
+    assert "Batch complete: 1 restored, 1 failed, 0 skipped, 0 cancelled." in snapshot.status
+    assert [row.status for row in snapshot.batch_file_results] == [
+        BatchFileStatus.FAILED,
+        BatchFileStatus.RESTORED,
+    ]
+    assert "model crashed" in snapshot.batch_file_results[0].detail
+    assert (tmp_path / "denoised_HRSTEM" / "b_later.tif").is_file()
+
+
+def test_nicegui_shell_render_shows_batch_progress_rows_and_readable_badges() -> None:
+    from denoiser.nicegui_shell import (
+        BatchResultRow,
+        InspectorShellState,
+        render_nicegui_shell,
+    )
+    from denoiser.workflow import BatchFileStatus
+
+    state = InspectorShellState(selected_workflow="Batch")
+    state.batch_progress_text = "2 of 2 files"
+    state.batch_file_results = (
+        BatchResultRow(
+            filename="launch_phase4_overlay_uat_with_a_very_long_name.tif",
+            status=BatchFileStatus.RESTORED,
+            status_label="Restored",
+            detail="Saved to denoised_HRSEM/launch_phase4_overlay_uat_with_a_very_long_name.tif",
+        ),
+        BatchResultRow(
+            filename="notes.txt",
+            status=BatchFileStatus.SKIPPED,
+            status_label="Skipped",
+            detail="Unsupported file format: .txt",
+        ),
+    )
+
+    recording_ui = RecordingUi()
+    render_nicegui_shell(ui_module=recording_ui, state=state, engine=object())
+
+    batch_html = "\n".join(recording_ui.labels)
+    assert "2 of 2 files" in batch_html
+    assert "launch_phase4_overlay_uat_with_a_very_long_name.tif" in batch_html
+    assert "notes.txt" in batch_html
+    assert "denoiser-batch-status-restored" in batch_html
+    assert "denoiser-batch-status-skipped" in batch_html
+    assert "overflow-wrap: anywhere" in recording_ui.head_html[0]
+    assert "white-space: normal" in recording_ui.head_html[0]
+
+
 @pytest.mark.anyio
 async def test_restore_button_runs_selected_single_restore(
     tmp_path: Path,
@@ -446,6 +588,65 @@ async def test_restore_button_runs_selected_single_restore(
     output = tmp_path / "denoised_HRSEM" / "wafer.tif"
     assert output.is_file()
     assert state.snapshot().comparison_preview is not None
+
+
+@pytest.mark.anyio
+async def test_batch_buttons_select_folder_and_start_batch_restore(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(source, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+
+    class PathSelector:
+        async def select_batch_folder_path(self) -> Path:
+            return tmp_path
+
+    class FakeEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            return pixels + 2
+
+    async def restore_runner(callback, *args):  # noqa: ANN001, ANN002
+        return callback(*args)
+
+    state = InspectorShellState(selected_workflow="Batch", selected_denoising_mode="LRSEM")
+    recording_ui = RecordingUi()
+    render_nicegui_shell(
+        ui_module=recording_ui,
+        state=state,
+        path_selector=PathSelector(),
+        engine=FakeEngine(),
+        restore_runner=restore_runner,
+    )
+
+    assert {"Add Folder", "Start Batch"} <= set(recording_ui.buttons)
+    await recording_ui.button_actions["Add Folder"]()
+    await recording_ui.button_actions["Start Batch"]()
+
+    output = tmp_path / "denoised_LRSEM" / "wafer.tif"
+    snapshot = state.snapshot()
+    assert output.is_file()
+    assert snapshot.selected_batch_folder_path == tmp_path
+    assert snapshot.batch_restore_state == "complete"
+    assert snapshot.batch_progress_text == "1 of 1 files"
+
+
+@pytest.mark.anyio
+async def test_start_batch_button_prompts_when_no_folder_selected() -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    class EngineShouldNotRun:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            raise AssertionError("Engine should not run without a Batch folder")
+
+    state = InspectorShellState(selected_workflow="Batch")
+    recording_ui = RecordingUi()
+    render_nicegui_shell(ui_module=recording_ui, state=state, engine=EngineShouldNotRun())
+
+    await recording_ui.button_actions["Start Batch"]()
+
+    assert state.snapshot().status == "Add a folder before starting Batch."
 
 
 def test_nicegui_shell_render_shows_raw_preview_without_comparison_divider(
@@ -567,3 +768,26 @@ async def test_native_path_selector_uses_native_file_dialog() -> None:
             "Supported images (*.tif;*.tiff;*.png;*.jpg;*.jpeg;*.dm3;*.dm4)",
         ),
     }
+
+
+@pytest.mark.anyio
+async def test_native_path_selector_uses_native_folder_dialog() -> None:
+    from denoiser.nicegui_shell import NiceGuiNativePathSelector
+
+    class NativeWindow:
+        def __init__(self) -> None:
+            self.dialog_kwargs: dict[str, object] | None = None
+
+        async def create_folder_dialog(self, **kwargs: object) -> list[str]:
+            self.dialog_kwargs = kwargs
+            return ["/case"]
+
+    class NativeApp:
+        def __init__(self) -> None:
+            self.main_window = NativeWindow()
+
+    native_app = NativeApp()
+    selector = NiceGuiNativePathSelector(native_app=native_app)
+
+    assert await selector.select_batch_folder_path() == Path("/case")
+    assert native_app.main_window.dialog_kwargs == {}

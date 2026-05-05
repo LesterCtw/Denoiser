@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import html
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -12,7 +13,14 @@ from PIL import Image
 from denoiser.models import DenoiseMode
 from denoiser.output_paths import output_path_for_input
 from denoiser.single_image_inspection import SingleImageInspection, inspect_single_image
-from denoiser.workflow import SingleRestoreResult, restore_single_image
+from denoiser.workflow import (
+    BatchFileResult,
+    BatchFileStatus,
+    BatchRestoreResult,
+    BatchRestoreRun,
+    SingleRestoreResult,
+    restore_single_image,
+)
 
 
 DENOISING_MODES = ("HRSTEM", "LRSTEM", "HRSEM", "LRSEM")
@@ -37,10 +45,14 @@ class InspectorShellSnapshot:
     single_controls_enabled: bool
     single_preview_state: str
     selected_single_image_path: Path | None
+    selected_batch_folder_path: Path | None
     overwrite_output_path: Path | None
     warnings: tuple[str, ...]
     raw_preview: RawPreview | None
     comparison_preview: ComparisonPreview | None
+    batch_restore_state: str
+    batch_progress_text: str
+    batch_file_results: tuple[BatchResultRow, ...]
     design_tokens: dict[str, str]
 
 
@@ -61,6 +73,15 @@ class ComparisonPreview:
     supports_drag: bool = True
 
 
+@dataclass(frozen=True)
+class BatchResultRow:
+    filename: str
+    status: BatchFileStatus
+    status_label: str
+    detail: str
+    output_path: Path | None = None
+
+
 class NiceGuiNativePathSelector:
     def __init__(self, *, native_app: Any | None = None) -> None:
         if native_app is None:
@@ -79,6 +100,14 @@ class NiceGuiNativePathSelector:
             return Path(selected)
         return Path(selected[0])
 
+    async def select_batch_folder_path(self) -> Path | None:
+        selected = await self._native_app.main_window.create_folder_dialog()
+        if not selected:
+            return None
+        if isinstance(selected, str):
+            return Path(selected)
+        return Path(selected[0])
+
 
 @dataclass
 class InspectorShellState:
@@ -88,6 +117,10 @@ class InspectorShellState:
     selected_single_image_path: Path | None = None
     status: str = "Ready"
     overwrite_output_path: Path | None = None
+    selected_batch_folder_path: Path | None = None
+    batch_restore_state: str = "idle"
+    batch_progress_text: str = "0 of 0 files"
+    batch_file_results: tuple[BatchResultRow, ...] = ()
     warnings: tuple[str, ...] = ()
     raw_preview: RawPreview | None = None
     comparison_preview: ComparisonPreview | None = None
@@ -101,6 +134,62 @@ class InspectorShellState:
         if denoising_mode not in DENOISING_MODES:
             raise ValueError(f"Unsupported denoising mode: {denoising_mode}")
         self.selected_denoising_mode = denoising_mode
+
+    def select_batch_folder_path(self, path: Path) -> None:
+        self.selected_workflow = "Batch"
+        self.selected_batch_folder_path = Path(path)
+        self.batch_restore_state = "folder-selected"
+        self.batch_progress_text = "0 of 0 files"
+        self.batch_file_results = ()
+        self.status = f"Batch folder: {Path(path).name}"
+
+    def restore_selected_batch_folder(
+        self,
+        engine: Any,
+        *,
+        batch_restore_run_factory: Any = BatchRestoreRun,
+    ) -> None:
+        if self.selected_batch_folder_path is None:
+            self.status = "Add a folder before starting Batch."
+            self.batch_restore_state = "idle"
+            return
+
+        run = batch_restore_run_factory(
+            self.selected_batch_folder_path,
+            DenoiseMode(self.selected_denoising_mode),
+            engine,
+        )
+        self.begin_batch_restore_run(run)
+
+        while True:
+            step = run.next_step()
+            self.apply_batch_restore_step(step)
+            if step.final_result is not None:
+                return
+
+    def begin_batch_restore_run(self, run: BatchRestoreRun) -> None:
+        self.batch_restore_state = "restoring"
+        self.batch_file_results = ()
+        self.batch_progress_text = f"{run.completed_count} of {run.total_count} files"
+        self.status = "Batch restoring..."
+
+    def apply_batch_restore_step(self, step: Any) -> None:
+        self.batch_file_results += tuple(
+            _batch_result_row(file_result) for file_result in step.file_results
+        )
+        self.batch_progress_text = f"{step.completed_count} of {step.total_count} files"
+        if step.final_result is not None:
+            self.finish_batch_restore(step.final_result)
+
+    def finish_batch_restore(self, result: BatchRestoreResult) -> None:
+        self.batch_restore_state = "complete"
+        self.status = (
+            "Batch complete: "
+            f"{result.restored_count} restored, "
+            f"{result.failed_count} failed, "
+            f"{result.skipped_count} skipped, "
+            f"{result.cancelled_count} cancelled."
+        )
 
     def begin_single_image_selection(self, path: Path) -> None:
         self.selected_workflow = "Single"
@@ -217,11 +306,15 @@ class InspectorShellState:
             selected_denoising_mode=self.selected_denoising_mode,
             single_preview_state=self.single_preview_state,
             selected_single_image_path=self.selected_single_image_path,
+            selected_batch_folder_path=self.selected_batch_folder_path,
             overwrite_output_path=self.overwrite_output_path,
             status=self.status,
             warnings=self.warnings,
             raw_preview=self.raw_preview,
             comparison_preview=self.comparison_preview,
+            batch_restore_state=self.batch_restore_state,
+            batch_progress_text=self.batch_progress_text,
+            batch_file_results=self.batch_file_results,
         )
 
 
@@ -231,11 +324,15 @@ def build_inspector_shell_snapshot(
     selected_denoising_mode: str = "HRSTEM",
     single_preview_state: str = "idle",
     selected_single_image_path: Path | None = None,
+    selected_batch_folder_path: Path | None = None,
     overwrite_output_path: Path | None = None,
     status: str = "Ready",
     warnings: tuple[str, ...] = (),
     raw_preview: RawPreview | None = None,
     comparison_preview: ComparisonPreview | None = None,
+    batch_restore_state: str = "idle",
+    batch_progress_text: str = "0 of 0 files",
+    batch_file_results: tuple[BatchResultRow, ...] = (),
 ) -> InspectorShellSnapshot:
     if selected_workflow not in WORKFLOWS:
         raise ValueError(f"Unsupported workflow: {selected_workflow}")
@@ -259,10 +356,14 @@ def build_inspector_shell_snapshot(
         single_controls_enabled=single_preview_state != "restoring",
         single_preview_state=single_preview_state,
         selected_single_image_path=selected_single_image_path,
+        selected_batch_folder_path=selected_batch_folder_path,
         overwrite_output_path=overwrite_output_path,
         warnings=warnings,
         raw_preview=raw_preview,
         comparison_preview=comparison_preview,
+        batch_restore_state=batch_restore_state,
+        batch_progress_text=batch_progress_text,
+        batch_file_results=batch_file_results,
         design_tokens=_load_design_tokens(),
     )
 
@@ -349,6 +450,13 @@ def render_nicegui_shell(
             state.finish_single_image_selection(inspection)
         refresh_shell()
 
+    async def choose_batch_folder() -> None:
+        path = await path_selector.select_batch_folder_path()
+        if path is None:
+            return
+        state.select_batch_folder_path(Path(path))
+        refresh_shell()
+
     async def restore_selected_image() -> None:
         if not state._has_restorable_single_image():
             state.begin_single_restore()
@@ -368,6 +476,26 @@ def render_nicegui_shell(
             state.finish_single_restore(result)
         refresh_shell()
 
+    async def restore_selected_batch() -> None:
+        if state.selected_batch_folder_path is None:
+            state.restore_selected_batch_folder(engine)
+            refresh_shell()
+            return
+
+        run = BatchRestoreRun(
+            state.selected_batch_folder_path,
+            DenoiseMode(state.selected_denoising_mode),
+            engine,
+        )
+        state.begin_batch_restore_run(run)
+        refresh_shell()
+        while True:
+            step = await restore_runner(run.next_step)
+            state.apply_batch_restore_step(step)
+            refresh_shell()
+            if step.final_result is not None:
+                return
+
     def render_work_area() -> None:
         current = state.snapshot()
         with ui_module.column().classes("denoiser-work-area"):
@@ -378,7 +506,11 @@ def render_nicegui_shell(
             for warning in current.warnings:
                 ui_module.label(warning).classes("denoiser-warning")
 
-            if current.comparison_preview is not None:
+            if current.selected_workflow == "Batch":
+                ui_module.html(_batch_results_html(current)).classes(
+                    "denoiser-batch-results"
+                )
+            elif current.comparison_preview is not None:
                 ui_module.html(_comparison_html(current.comparison_preview)).classes(
                     "denoiser-preview"
                 )
@@ -403,17 +535,30 @@ def render_nicegui_shell(
 
                 workflow_controls()
 
-                open_button = ui_module.button("Open Image", on_click=choose_single_image)
-                open_button.classes("denoiser-secondary-action")
-                _disable_when_restoring(open_button, state.snapshot())
+                if state.snapshot().selected_workflow == "Batch":
+                    folder_button = ui_module.button("Add Folder", on_click=choose_batch_folder)
+                    folder_button.classes("denoiser-secondary-action")
+                    _disable_when_restoring(folder_button, state.snapshot())
+                else:
+                    open_button = ui_module.button("Open Image", on_click=choose_single_image)
+                    open_button.classes("denoiser-secondary-action")
+                    _disable_when_restoring(open_button, state.snapshot())
 
                 ui_module.label("Denoising mode").classes("denoiser-section-label")
                 mode_controls()
 
-                restore_button = ui_module.button(
-                    snapshot.primary_action,
-                    on_click=restore_selected_image,
+                current = state.snapshot()
+                action_label = (
+                    "Start Batch"
+                    if current.selected_workflow == "Batch"
+                    else snapshot.primary_action
                 )
+                action_handler = (
+                    restore_selected_batch
+                    if current.selected_workflow == "Batch"
+                    else restore_selected_image
+                )
+                restore_button = ui_module.button(action_label, on_click=action_handler)
                 restore_button.classes("denoiser-primary-action")
                 _disable_when_restoring(restore_button, state.snapshot())
                 ui_module.label(snapshot.status).classes("denoiser-status")
@@ -585,6 +730,65 @@ def _shell_css(tokens: dict[str, str]) -> str:
         opacity: 0;
         cursor: ew-resize;
       }}
+      .denoiser-batch-results {{
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }}
+      .denoiser-batch-progress {{
+        color: {tokens["ink-muted"]};
+        font-size: 13px;
+      }}
+      .denoiser-batch-list {{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }}
+      .denoiser-batch-row {{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: start;
+        padding: 12px;
+        border: 1px solid {tokens["hairline"]};
+        border-radius: 8px;
+        background: {tokens["surface-1"]};
+      }}
+      .denoiser-batch-file {{
+        color: {tokens["ink"]};
+        font-size: 14px;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }}
+      .denoiser-batch-detail {{
+        color: {tokens["ink-muted"]};
+        font-size: 12px;
+        overflow-wrap: anywhere;
+        white-space: normal;
+      }}
+      .denoiser-batch-badge {{
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: nowrap;
+      }}
+      .denoiser-batch-status-restored {{
+        color: #9ee6b7;
+        background: rgba(58, 166, 94, 0.18);
+      }}
+      .denoiser-batch-status-skipped {{
+        color: #e5d18b;
+        background: rgba(174, 139, 43, 0.2);
+      }}
+      .denoiser-batch-status-failed {{
+        color: #ffb4a8;
+        background: rgba(207, 62, 62, 0.18);
+      }}
+      .denoiser-batch-status-cancelled {{
+        color: #c7ceda;
+        background: rgba(127, 139, 158, 0.18);
+      }}
     </style>
     """
 
@@ -652,6 +856,64 @@ def _comparison_html(preview: ComparisonPreview) -> str:
              ">
     </div>
     """
+
+
+def _batch_results_html(snapshot: InspectorShellSnapshot) -> str:
+    rows = "\n".join(_batch_result_html(row) for row in snapshot.batch_file_results)
+    if not rows:
+        rows = '<div class="denoiser-batch-empty">No Batch results yet.</div>'
+    return f"""
+    <div class="denoiser-batch-results">
+      <div class="denoiser-batch-progress">{snapshot.batch_progress_text}</div>
+      <div class="denoiser-batch-list">{rows}</div>
+    </div>
+    """
+
+
+def _batch_result_html(row: BatchResultRow) -> str:
+    status_class = row.status.value
+    filename = html.escape(row.filename)
+    detail = html.escape(row.detail)
+    status_label = html.escape(row.status_label)
+    return f"""
+    <div class="denoiser-batch-row">
+      <div>
+        <div class="denoiser-batch-file">{filename}</div>
+        <div class="denoiser-batch-detail">{detail}</div>
+      </div>
+      <div class="denoiser-batch-badge denoiser-batch-status-{status_class}">
+        {status_label}
+      </div>
+    </div>
+    """
+
+
+def _batch_result_row(file_result: BatchFileResult) -> BatchResultRow:
+    return BatchResultRow(
+        filename=file_result.source_path.name,
+        status=file_result.status,
+        status_label=_batch_status_label(file_result.status),
+        detail=_readable_batch_detail(file_result),
+        output_path=file_result.output_path,
+    )
+
+
+def _batch_status_label(status: BatchFileStatus) -> str:
+    if status is BatchFileStatus.RESTORED:
+        return "Restored"
+    if status is BatchFileStatus.FAILED:
+        return "Failed"
+    if status is BatchFileStatus.CANCELLED:
+        return "Cancelled"
+    return "Skipped"
+
+
+def _readable_batch_detail(file_result: BatchFileResult) -> str:
+    if file_result.status is BatchFileStatus.RESTORED:
+        if file_result.output_path is None:
+            return "Saved output"
+        return f"Saved to {file_result.output_path.parent.name}/{file_result.output_path.name}"
+    return file_result.message
 
 
 def _load_design_tokens() -> dict[str, str]:

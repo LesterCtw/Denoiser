@@ -39,7 +39,7 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 - First runnable NiceGUI native-window inspector shell：啟動為 NiceGUI native window，
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
   workflow switch、四個 denoising mode buttons、primary action area 和 status area。
-  NiceGUI Batch restore parity 尚未完成。
+  NiceGUI restore parity 已完成。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
   loading/selected/error status、overwrite warning、large-image warning，以及
@@ -49,6 +49,10 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
   顯示 processing/saved/error status，restore 中停用衝突 controls，成功後顯示
   raw/restored before/after comparison、50% 初始 divider、click-to-jump 和 drag
   interaction。
+- NiceGUI Batch folder selection and restore run：Batch mode 會透過 NiceGUI
+  native folder dialog 選擇 folder，使用現有 Batch restore workflow 執行
+  non-recursive restore run，顯示 progress、restored/skipped/failed per-file rows，
+  以及 final restored/failed/skipped/cancelled summary。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
@@ -107,8 +111,6 @@ source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide
 
 尚未實作：
 
-- NiceGUI Batch restore parity：Batch restore run、Batch native folder dialog 尚未接到
-  NiceGUI shell。
 - Windows release build verification。
 
 ## 第一版 MVS 範圍
