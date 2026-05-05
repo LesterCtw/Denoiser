@@ -22,13 +22,20 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 - `docs/adr/0001-use-pyside6-for-windows-desktop-ui.md`
 - `docs/adr/0002-bundle-onnx-models-for-offline-cpu-runtime.md`
 - `docs/adr/0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md`
+- `docs/adr/0004-use-nicegui-native-window-for-desktop-ui.md`
+
+ADR 0004 supersedes ADR 0001。Frontend direction 現在是 NiceGUI native
+window，使用 standard Windows title bar，並以 repo `DESIGN.md` 作為 visual
+source of truth。NiceGUI frontend 達到 parity 後，專案應維持 no PySide6 fallback，
+避免長期維護兩套 public frontend stacks。Windows release path 仍維持 PyInstaller。
 
 ## 目前實作狀態
 
 已實作：
 
 - `src/denoiser` package layout 的專案骨架。
-- PySide6 application entry point 和基本 main window。
+- PySide6 application entry point 和基本 main window；這是目前已存在的 implementation，
+  但 frontend direction 已改為 NiceGUI native window。
 - App/window icon asset 已放在 `assets/icons/denoiser_icon.ico`，runtime 和
   Windows build script 會使用同一個 icon。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
@@ -87,16 +94,17 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
 
 尚未實作：
 
+- NiceGUI native-window frontend migration。
 - Windows release build verification。
 
 ## 第一版 MVS 範圍
 
-- Desktop frontend：PySide6
+- Desktop frontend direction：NiceGUI native window
 - Target platform：Windows 10/11 laptop PCs
 - Runtime：CPU only
 - Distribution：folder-style Windows release，包含 `Denoiser.exe`
 - App icon：使用 `assets/icons/denoiser_icon.ico`
-- Offline use：必要；model files 會 commit 到此 repo 並一起打包進 release
+- Offline use：必要；bundled ONNX models 會 commit 到此 repo 並一起打包進 release
 - Product name / brand：`Denoiser`
 - UI language：English
 - Development dependency manager：`uv`
@@ -176,6 +184,7 @@ Denoiser/
   requirements.txt
   README.md
   CONTEXT.md
+  DESIGN.md
   licenses/
     THIRD_PARTY_NOTICES.md
     tk_r_em_LICENSE.txt
@@ -194,6 +203,7 @@ Denoiser/
       0001-use-pyside6-for-windows-desktop-ui.md
       0002-bundle-onnx-models-for-offline-cpu-runtime.md
       0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md
+      0004-use-nicegui-native-window-for-desktop-ui.md
     windows-build-and-package.md
     windows-release-verification.md
   src/
@@ -387,9 +397,10 @@ Cancellation：
 
 ## Design direction
 
-UI 應遵循 Apple-style design reference：
+UI 應遵循 repo `DESIGN.md`，這是目前 frontend visual direction 的 source of truth。
 
-`/Users/lesterc/Project/design-md/apple/DESIGN.md`
+Frontend target 是 NiceGUI native window，並保留 standard Windows title bar。
+NiceGUI frontend 達到 MVS parity 後，專案應維持 no PySide6 fallback。
 
 對這個 desktop tool 的實務解讀：
 

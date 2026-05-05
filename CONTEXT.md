@@ -39,7 +39,9 @@ inspection so image selection can update the UI before preview loading finishes.
 - Issues are tracked in GitHub Issues for `LesterCtw/Denoiser`.
 - Initial architectural decisions are recorded under `docs/adr/`.
 - First release targets Windows 10/11 laptops with CPU inference only.
-- The frontend will use PySide6.
+- The frontend direction is NiceGUI native window with the standard Windows title bar,
+  repo `DESIGN.md` as the visual source of truth, and no PySide6 fallback after
+  MVS parity migration.
 - The app will commit and bundle four `tk_r_em` ONNX models and run offline.
 - The app will use a minimal local engine wrapper instead of the full upstream
   `tk_r_em` package at runtime.
