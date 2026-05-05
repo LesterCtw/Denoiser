@@ -125,6 +125,28 @@ def test_nicegui_shell_mode_selection_updates_selected_state() -> None:
     }
 
 
+def test_single_mode_change_updates_selected_image_overwrite_target(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState()
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[0, 255]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+
+    state.select_denoising_mode("LRSEM")
+
+    snapshot = state.snapshot()
+    assert snapshot.selected_denoising_mode == "LRSEM"
+    assert snapshot.overwrite_output_path == tmp_path / "denoised_LRSEM" / "wafer.tif"
+
+
 def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
 
@@ -479,6 +501,30 @@ def test_batch_restore_prompts_for_folder_before_running_engine() -> None:
     snapshot = state.snapshot()
     assert snapshot.status == "Add a folder before starting Batch."
     assert snapshot.batch_restore_state == "idle"
+
+
+def test_batch_restore_blocks_denoised_folder_before_running_engine(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    folder = tmp_path / "denoised_HRSTEM"
+    folder.mkdir()
+    tifffile.imwrite(folder / "wafer.tif", np.zeros((2, 2), dtype=np.uint8))
+
+    class EngineShouldNotRun:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            raise AssertionError("Engine should not run for denoised_* Batch folder")
+
+    state = InspectorShellState(selected_workflow="Batch")
+    state.select_batch_folder_path(folder)
+    state.restore_selected_batch_folder(EngineShouldNotRun())
+
+    snapshot = state.snapshot()
+    assert snapshot.status == "Cannot start Batch: Refusing to process denoised_* folders."
+    assert snapshot.batch_restore_state == "folder-selected"
+    assert snapshot.batch_progress_text == "0 of 0 files"
+    assert snapshot.batch_file_results == ()
 
 
 def test_batch_restore_writes_output_and_lists_restored_and_skipped_files(

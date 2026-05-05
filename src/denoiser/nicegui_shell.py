@@ -12,6 +12,7 @@ from denoiser.app_icon import (
     application_macos_icon_path,
 )
 from denoiser.batch_presentation import BatchResultRow, batch_result_row
+from denoiser.image_io import ImageFormatError
 from denoiser.models import DenoiseMode, supported_denoise_modes
 from denoiser.output_paths import output_path_for_input
 from denoiser.preview_presentation import (
@@ -126,6 +127,11 @@ class InspectorShellState:
         if denoising_mode not in DENOISING_MODES:
             raise ValueError(f"Unsupported denoising mode: {denoising_mode}")
         self.selected_denoising_mode = denoising_mode
+        if self.selected_single_image_path is not None:
+            self.overwrite_output_path = _overwrite_output_path(
+                self.selected_single_image_path,
+                self.selected_denoising_mode,
+            )
 
     def select_batch_folder_path(self, path: Path) -> None:
         self.selected_workflow = "Batch"
@@ -146,11 +152,15 @@ class InspectorShellState:
             self.batch_restore_state = "idle"
             return
 
-        run = batch_restore_run_factory(
-            self.selected_batch_folder_path,
-            DenoiseMode(self.selected_denoising_mode),
-            engine,
-        )
+        try:
+            run = batch_restore_run_factory(
+                self.selected_batch_folder_path,
+                DenoiseMode(self.selected_denoising_mode),
+                engine,
+            )
+        except ImageFormatError as exc:
+            self.fail_batch_restore_start(exc)
+            return
         self.begin_batch_restore_run(run)
 
         while True:
@@ -169,6 +179,12 @@ class InspectorShellState:
         if self.batch_restore_state == "restoring":
             self.batch_restore_state = "cancelling"
             self.status = "Cancelling batch..."
+
+    def fail_batch_restore_start(self, exc: Exception) -> None:
+        self.batch_restore_state = "folder-selected"
+        self.batch_progress_text = "0 of 0 files"
+        self.batch_file_results = ()
+        self.status = f"Cannot start Batch: {exc}"
 
     def apply_batch_restore_step(self, step: Any) -> None:
         self.batch_file_results += tuple(
@@ -547,11 +563,16 @@ def render_nicegui_shell(
             refresh_shell()
             return
 
-        run = BatchRestoreRun(
-            state.selected_batch_folder_path,
-            DenoiseMode(state.selected_denoising_mode),
-            engine,
-        )
+        try:
+            run = BatchRestoreRun(
+                state.selected_batch_folder_path,
+                DenoiseMode(state.selected_denoising_mode),
+                engine,
+            )
+        except ImageFormatError as exc:
+            state.fail_batch_restore_start(exc)
+            refresh_shell()
+            return
         active_batch_run = run
         state.begin_batch_restore_run(run)
         refresh_shell()

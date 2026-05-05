@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 import tifffile
 
+from denoiser.image_io import ImageFormatError
 from denoiser.models import DenoiseMode
 from denoiser.workflow import (
     BatchFileStatus,
@@ -23,6 +25,15 @@ def test_batch_input_paths_scans_selected_folder_non_recursively(tmp_path: Path)
     tifffile.imwrite(nested, np.ones((2, 2), dtype=np.uint8))
 
     assert batch_input_paths(tmp_path) == [direct]
+
+
+def test_batch_input_paths_rejects_denoised_selected_folder(tmp_path: Path) -> None:
+    folder = tmp_path / "denoised_HRSTEM"
+    folder.mkdir()
+    tifffile.imwrite(folder / "wafer.tif", np.zeros((2, 2), dtype=np.uint8))
+
+    with pytest.raises(ImageFormatError, match="denoised_"):
+        batch_input_paths(folder)
 
 
 def test_batch_restore_run_exposes_each_file_result_as_it_advances(

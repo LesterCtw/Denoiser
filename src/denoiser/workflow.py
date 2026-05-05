@@ -11,6 +11,7 @@ import numpy as np
 
 from denoiser.image_io import ImageFormatError, load_image, save_restored_image
 from denoiser.models import DenoiseMode
+from denoiser.output_paths import is_inside_denoised_folder
 
 
 class RestoreEngine(Protocol):
@@ -85,7 +86,10 @@ class BatchRestoreStep:
 
 
 def batch_input_paths(folder: Path) -> list[Path]:
-    return sorted(path for path in Path(folder).iterdir() if path.is_file())
+    folder = Path(folder)
+    if is_inside_denoised_folder(folder):
+        raise ImageFormatError("Refusing to process denoised_* folders.")
+    return sorted(path for path in folder.iterdir() if path.is_file())
 
 
 class BatchRestoreRun:

@@ -65,7 +65,8 @@ stacks。Windows release path 仍維持 PyInstaller。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
   left-rail loading/selected/error status、overwrite warning、large-image warning，以及
-  會填滿右側可用工作區高度的 fit-to-window raw-only preview。
+  會填滿右側可用工作區高度的 fit-to-window raw-only preview。選圖後切換 denoising
+  mode 時，UI overwrite target 會同步更新到新的 mode folder。
 - NiceGUI Single restore and before/after comparison：Single mode 會使用現有
   Denoiser Single restore workflow 執行 Restore，自動寫入既有 output path，
   顯示 processing/saved/error status，restore 中停用衝突 controls，成功後顯示
@@ -100,6 +101,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   可替換 NiceGUI/pywebview dialogs 與 ONNX Runtime session。
 - Batch cancellation between files、per-file failure isolation，以及 final
   restored/failed/skipped/cancelled summary counts。
+- Batch mode 會在 restore workflow 建立前拒絕 selected `denoised_*` folder，
+  避免把已輸出的 folder 當成新的 Batch input。
 - Single mode preview：選圖後顯示 raw-only preview；restore 後顯示 raw/restored
   before/after compare view、50% 初始 divider、drag interaction、click-to-jump
   interaction。
@@ -135,8 +138,9 @@ stacks。Windows release path 仍維持 PyInstaller。
   readable Single/Batch status output、NiceGUI Batch UI progress/status behavior、
   unclipped Batch per-file status rows、
   Single image inspection behavior、output naming、Batch restore runner orchestration、
-  NiceGUI before/after comparison state and rendering contract、
-  denoised-folder rejection、
+  NiceGUI before/after comparison state and rendering contract、Single mode-change
+  overwrite target synchronization、
+  denoised-folder rejection、Batch selected denoised-folder blocking、
   unsupported-input rejection、multi-page TIFF rejection、Windows build script
   RosettaSciIO hidden import guard、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
