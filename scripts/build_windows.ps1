@@ -32,6 +32,7 @@ python -m PyInstaller `
   --icon "$iconPath" `
   --add-data "assets;assets" `
   --paths src `
+  --hidden-import rsciio.utils._distributed `
   --add-data "models;models" `
   --add-data "licenses;licenses" `
   src\denoiser\app.py

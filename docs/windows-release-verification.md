@@ -71,6 +71,8 @@ python -m pytest
 - `dist\Denoiser\Denoiser.exe` 存在。
 - Script 完成且沒有 errors。
 - Build script 使用 `assets\icons\denoiser_icon.ico` 作為 `Denoiser.exe` icon。
+- Build script 包含 `--hidden-import rsciio.utils._distributed`，讓 frozen app 可載入
+  RosettaSciIO DM3/DM4 reader 的 lazy-loaded dependency。
 
 ## Release Folder Inspection
 
@@ -140,6 +142,24 @@ Pass criteria：
 - Restore 仍可正常運作。
 - 沒有嘗試下載 model 或 dependency。
 
+## DM3/DM4 Restore Smoke Test
+
+如果手邊有安全、non-sensitive、single 2D image 的 `.dm3` 或 `.dm4` sample，請在同一個
+release folder 做一次額外測試。
+
+步驟：
+
+1. 在 Single mode 點擊 `Open Image`。
+2. 選擇 `.dm3` 或 `.dm4` sample。
+3. 選擇一個 mode，例如 `HRSTEM`。
+4. 點擊 `Restore`。
+
+Pass criteria：
+
+- App 沒有顯示 RosettaSciIO / `rsciio` import 相關錯誤。
+- Output 出現在 input 旁邊正確的 mode folder。
+- Output extension 是 `.tif`，且可用標準 image viewer 或 inspection tool 開啟。
+
 ## Failure Notes
 
 任何 failure 都請記錄：
@@ -177,6 +197,7 @@ Pass criteria：
 - Launch without Python/uv/pip for end user: pass/fail
 - Small Single restore smoke test: pass/fail
 - Offline launch and restore: pass/fail
+- DM3/DM4 restore smoke test, if safe sample is available: pass/fail/not run
 - README updated with verified status: pass/fail
 
 ### Notes

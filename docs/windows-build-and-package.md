@@ -155,6 +155,10 @@ python -m pip install -e . --no-deps
 - `python -m pip install -e . --no-deps` 會安裝本地 Denoiser package，但不再重複解析
   dependencies。
 
+`scripts\build_windows.ps1` 會在 PyInstaller command 中加入
+`--hidden-import rsciio.utils._distributed`。RosettaSciIO 的 DM3/DM4 reader 會用 lazy
+import 載入這個 module；一般 Python 執行可正常解析，但 frozen app 需要明確包含它。
+
 如果你想快速批次安裝，也可以使用：
 
 ```powershell

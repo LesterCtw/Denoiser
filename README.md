@@ -61,6 +61,9 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
 - Conservative metadata preservation：TIFF 保留 safe standard metadata，PNG 保留
   safe text metadata；unsupported metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
+- Windows build script 會明確包含 RosettaSciIO DM3/DM4 reader 的 lazy-loaded
+  `rsciio.utils._distributed` module，避免 PyInstaller frozen app 讀取 `.dm3` / `.dm4`
+  時漏掉 runtime dependency。
 - Focused tests：app icon loading、model mapping、missing model handling、whole-image inference、
   patch-based inference、Single restore workflow、Batch restore workflow、
   Single UI restore behavior、Single restore processing status transition、
@@ -71,7 +74,8 @@ Initial ADRs 已補上，用來記錄第一版 MVS 的基礎架構決策：
   before/after compare view interaction、Single preview stale tooltip regression、
   1024x1024 first-drag rendering smoke check、
   denoised-folder rejection、
-  unsupported-input rejection、multi-page TIFF rejection、batch cancellation、
+  unsupported-input rejection、multi-page TIFF rejection、Windows build script
+  RosettaSciIO hidden import guard、batch cancellation、
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
   Batch result row formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
   uint16 TIFF clipping、
@@ -147,6 +151,11 @@ End users 不需要 Python、`uv` 或 `pip`。
 
 Windows release 的人工驗證步驟記錄在
 `docs/windows-release-verification.md`。
+
+Build script 會額外傳入 `--hidden-import rsciio.utils._distributed`。原因是
+RosettaSciIO 的 DM3/DM4 reader 會透過 lazy import 使用這個 module；一般 Python 執行
+可以正常載入，但 PyInstaller frozen app 需要明確指定，否則 `.dm3` / `.dm4` 讀取可能在
+runtime 失敗。
 
 ## Repository layout
 
