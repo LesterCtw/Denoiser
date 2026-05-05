@@ -12,6 +12,7 @@ from PIL import Image
 from denoiser.models import DenoiseMode
 from denoiser.output_paths import output_path_for_input
 from denoiser.single_image_inspection import SingleImageInspection, inspect_single_image
+from denoiser.workflow import SingleRestoreResult, restore_single_image
 
 
 DENOISING_MODES = ("HRSTEM", "LRSTEM", "HRSEM", "LRSEM")
@@ -33,11 +34,13 @@ class InspectorShellSnapshot:
     right_work_area_title: str
     primary_action: str
     status: str
+    single_controls_enabled: bool
     single_preview_state: str
     selected_single_image_path: Path | None
     overwrite_output_path: Path | None
     warnings: tuple[str, ...]
     raw_preview: RawPreview | None
+    comparison_preview: ComparisonPreview | None
     design_tokens: dict[str, str]
 
 
@@ -45,6 +48,17 @@ class InspectorShellSnapshot:
 class RawPreview:
     data_url: str
     is_comparing: bool = False
+
+
+@dataclass(frozen=True)
+class ComparisonPreview:
+    raw_data_url: str
+    restored_data_url: str
+    divider_position: float = 0.5
+    raw_side: str = "left"
+    restored_side: str = "right"
+    supports_click_to_jump: bool = True
+    supports_drag: bool = True
 
 
 class NiceGuiNativePathSelector:
@@ -76,6 +90,7 @@ class InspectorShellState:
     overwrite_output_path: Path | None = None
     warnings: tuple[str, ...] = ()
     raw_preview: RawPreview | None = None
+    comparison_preview: ComparisonPreview | None = None
 
     def select_workflow(self, workflow: str) -> None:
         if workflow not in WORKFLOWS:
@@ -98,6 +113,7 @@ class InspectorShellState:
         )
         self.warnings = ("Existing outputs will be overwritten.",)
         self.raw_preview = None
+        self.comparison_preview = None
 
     def select_single_image_path(
         self,
@@ -121,6 +137,7 @@ class InspectorShellState:
         self.overwrite_output_path = None
         self.warnings = ()
         self.raw_preview = None
+        self.comparison_preview = None
 
     def finish_single_image_selection(
         self,
@@ -138,6 +155,61 @@ class InspectorShellState:
             warnings.append("Large images may take several minutes.")
         self.warnings = tuple(warnings)
         self.raw_preview = RawPreview(data_url=_raw_preview_data_url(inspection.preview_pixels))
+        self.comparison_preview = None
+
+    def begin_single_restore(self) -> None:
+        if not self._has_restorable_single_image():
+            self.status = "Open an image before restoring."
+            return None
+        self.single_preview_state = "restoring"
+        self.status = "Restoring..."
+        return None
+
+    def restore_selected_single_image(
+        self,
+        engine: Any,
+        *,
+        restore_single_image: Any = restore_single_image,
+    ) -> None:
+        if not self._has_restorable_single_image():
+            self.begin_single_restore()
+            return
+
+        assert self.selected_single_image_path is not None
+        path = self.selected_single_image_path
+        mode = DenoiseMode(self.selected_denoising_mode)
+        self.begin_single_restore()
+        try:
+            result = restore_single_image(path, mode, engine)
+        except Exception as exc:
+            self.fail_single_restore(exc)
+            return
+        self.finish_single_restore(result)
+
+    def finish_single_restore(self, result: SingleRestoreResult) -> None:
+        self.single_preview_state = "restored"
+        self.selected_single_image_path = result.source_path
+        self.overwrite_output_path = result.output_path
+        self.status = (
+            f"Saved: {result.output_path.name}\n"
+            f"Folder: {result.output_path.parent.name}"
+        )
+        self.warnings = ()
+        self.raw_preview = None
+        self.comparison_preview = _comparison_preview(
+            result.raw_pixels,
+            result.restored_pixels,
+        )
+
+    def fail_single_restore(self, exc: Exception) -> None:
+        self.single_preview_state = "selected"
+        self.status = f"Cannot restore: {exc}"
+
+    def _has_restorable_single_image(self) -> bool:
+        return (
+            self.selected_single_image_path is not None
+            and self.single_preview_state in {"selected", "restored"}
+        )
 
     def snapshot(self) -> InspectorShellSnapshot:
         return build_inspector_shell_snapshot(
@@ -149,6 +221,7 @@ class InspectorShellState:
             status=self.status,
             warnings=self.warnings,
             raw_preview=self.raw_preview,
+            comparison_preview=self.comparison_preview,
         )
 
 
@@ -162,6 +235,7 @@ def build_inspector_shell_snapshot(
     status: str = "Ready",
     warnings: tuple[str, ...] = (),
     raw_preview: RawPreview | None = None,
+    comparison_preview: ComparisonPreview | None = None,
 ) -> InspectorShellSnapshot:
     if selected_workflow not in WORKFLOWS:
         raise ValueError(f"Unsupported workflow: {selected_workflow}")
@@ -182,11 +256,13 @@ def build_inspector_shell_snapshot(
         right_work_area_title=_right_work_area_title(selected_workflow),
         primary_action="Restore",
         status=status,
+        single_controls_enabled=single_preview_state != "restoring",
         single_preview_state=single_preview_state,
         selected_single_image_path=selected_single_image_path,
         overwrite_output_path=overwrite_output_path,
         warnings=warnings,
         raw_preview=raw_preview,
+        comparison_preview=comparison_preview,
         design_tokens=_load_design_tokens(),
     )
 
@@ -196,7 +272,10 @@ def render_nicegui_shell(
     state: InspectorShellState | None = None,
     ui_module: Any | None = None,
     path_selector: Any | None = None,
+    engine: Any | None = None,
     inspect_single_image: Any = inspect_single_image,
+    restore_single_image: Any = restore_single_image,
+    restore_runner: Any | None = None,
 ) -> InspectorShellState:
     if state is None:
         state = InspectorShellState()
@@ -204,6 +283,12 @@ def render_nicegui_shell(
         from nicegui import ui as ui_module
     if path_selector is None:
         path_selector = NiceGuiNativePathSelector()
+    if engine is None:
+        from denoiser.engine import OnnxDenoiser
+
+        engine = OnnxDenoiser()
+    if restore_runner is None:
+        restore_runner = _run_restore_in_thread
 
     snapshot = state.snapshot()
     ui_module.add_head_html(_shell_css(snapshot.design_tokens))
@@ -217,33 +302,37 @@ def render_nicegui_shell(
         current = state.snapshot()
         with ui_module.row().classes("denoiser-segmented-control"):
             for workflow in current.workflows:
-                ui_module.button(
+                button = ui_module.button(
                     workflow,
                     on_click=lambda workflow=workflow: (
                         state.select_workflow(workflow),
                         refresh_shell(),
                     ),
-                ).classes(
+                )
+                button.classes(
                     "denoiser-pill denoiser-pill-selected"
                     if workflow == current.selected_workflow
                     else "denoiser-pill"
                 )
+                _disable_when_restoring(button, current)
 
     def render_mode_controls() -> None:
         current = state.snapshot()
         with ui_module.column().classes("denoiser-mode-list"):
             for mode in current.denoising_modes:
-                ui_module.button(
+                button = ui_module.button(
                     mode,
                     on_click=lambda mode=mode: (
                         state.select_denoising_mode(mode),
                         refresh_shell(),
                     ),
-                ).classes(
+                )
+                button.classes(
                     "denoiser-mode-button denoiser-mode-button-selected"
                     if current.mode_button_states[mode] == "selected"
                     else "denoiser-mode-button"
                 )
+                _disable_when_restoring(button, current)
 
     async def choose_single_image() -> None:
         path = await path_selector.select_single_image_path()
@@ -260,6 +349,25 @@ def render_nicegui_shell(
             state.finish_single_image_selection(inspection)
         refresh_shell()
 
+    async def restore_selected_image() -> None:
+        if not state._has_restorable_single_image():
+            state.begin_single_restore()
+            refresh_shell()
+            return
+
+        assert state.selected_single_image_path is not None
+        path = state.selected_single_image_path
+        mode = DenoiseMode(state.selected_denoising_mode)
+        state.begin_single_restore()
+        refresh_shell()
+        try:
+            result = await restore_runner(restore_single_image, path, mode, engine)
+        except Exception as exc:
+            state.fail_single_restore(exc)
+        else:
+            state.finish_single_restore(result)
+        refresh_shell()
+
     def render_work_area() -> None:
         current = state.snapshot()
         with ui_module.column().classes("denoiser-work-area"):
@@ -270,7 +378,11 @@ def render_nicegui_shell(
             for warning in current.warnings:
                 ui_module.label(warning).classes("denoiser-warning")
 
-            if current.raw_preview is not None:
+            if current.comparison_preview is not None:
+                ui_module.html(_comparison_html(current.comparison_preview)).classes(
+                    "denoiser-preview"
+                )
+            elif current.raw_preview is not None:
                 ui_module.image(current.raw_preview.data_url).classes(
                     "denoiser-raw-preview"
                 )
@@ -291,16 +403,19 @@ def render_nicegui_shell(
 
                 workflow_controls()
 
-                ui_module.button("Open Image", on_click=choose_single_image).classes(
-                    "denoiser-secondary-action"
-                )
+                open_button = ui_module.button("Open Image", on_click=choose_single_image)
+                open_button.classes("denoiser-secondary-action")
+                _disable_when_restoring(open_button, state.snapshot())
 
                 ui_module.label("Denoising mode").classes("denoiser-section-label")
                 mode_controls()
 
-                ui_module.button(snapshot.primary_action).classes(
-                    "denoiser-primary-action"
+                restore_button = ui_module.button(
+                    snapshot.primary_action,
+                    on_click=restore_selected_image,
                 )
+                restore_button.classes("denoiser-primary-action")
+                _disable_when_restoring(restore_button, state.snapshot())
                 ui_module.label(snapshot.status).classes("denoiser-status")
 
             work_area()
@@ -324,6 +439,17 @@ def _refreshable(ui_module: Any, render: Any) -> Any:
     if refreshable is None:
         return _ImmediateRefreshable(render)
     return refreshable(render)
+
+
+def _disable_when_restoring(element: Any, snapshot: InspectorShellSnapshot) -> None:
+    if not snapshot.single_controls_enabled:
+        element.props("disable")
+
+
+async def _run_restore_in_thread(callback: Any, *args: Any) -> Any:
+    from nicegui import run
+
+    return await run.io_bound(callback, *args)
 
 
 def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
@@ -420,6 +546,45 @@ def _shell_css(tokens: dict[str, str]) -> str:
         border-radius: 8px;
         background: {tokens["surface-1"]};
       }}
+      .denoiser-comparison {{
+        position: relative;
+        width: 100%;
+        min-height: 420px;
+        max-height: calc(100vh - 160px);
+        overflow: hidden;
+        border: 1px solid {tokens["hairline"]};
+        border-radius: 8px;
+        background: {tokens["surface-1"]};
+        user-select: none;
+        touch-action: none;
+      }}
+      .denoiser-comparison img {{
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }}
+      .denoiser-comparison-restored {{
+        clip-path: inset(0 0 0 50%);
+      }}
+      .denoiser-comparison-divider {{
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        background: white;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72);
+      }}
+      .denoiser-comparison-control {{
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: ew-resize;
+      }}
     </style>
     """
 
@@ -452,6 +617,41 @@ def _raw_preview_data_url(preview_pixels: np.ndarray) -> str:
     Image.fromarray(display_uint8).save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
+
+
+def _comparison_preview(raw_pixels: np.ndarray, restored_pixels: np.ndarray) -> ComparisonPreview:
+    return ComparisonPreview(
+        raw_data_url=_raw_preview_data_url(raw_pixels),
+        restored_data_url=_raw_preview_data_url(restored_pixels),
+    )
+
+
+def _comparison_html(preview: ComparisonPreview) -> str:
+    divider_percent = preview.divider_position * 100
+    return f"""
+    <div class="denoiser-comparison"
+         data-divider="{preview.divider_position}"
+         data-raw-side="{preview.raw_side}"
+         data-restored-side="{preview.restored_side}">
+      <img class="denoiser-comparison-raw" src="{preview.raw_data_url}" alt="Raw image">
+      <img class="denoiser-comparison-restored" src="{preview.restored_data_url}" alt="Restored image">
+      <div class="denoiser-comparison-divider"></div>
+      <input class="denoiser-comparison-control"
+             type="range"
+             min="0"
+             max="100"
+             value="{divider_percent}"
+             aria-label="Before after comparison divider"
+             oninput="
+               const root = this.closest('.denoiser-comparison');
+               const percent = this.value + '%';
+               root.dataset.divider = String(Number(this.value) / 100);
+               root.querySelector('.denoiser-comparison-restored').style.clipPath =
+                 'inset(0 0 0 ' + percent + ')';
+               root.querySelector('.denoiser-comparison-divider').style.left = percent;
+             ">
+    </div>
+    """
 
 
 def _load_design_tokens() -> dict[str, str]:

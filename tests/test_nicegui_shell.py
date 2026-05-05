@@ -4,12 +4,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import tifffile
 
 from denoiser.image_io import ImageFormatError
 from denoiser.single_image_inspection import SingleImageInspection
 
 
 class RecordingElement:
+    def __init__(self, props_sink: list[str] | None = None) -> None:
+        self._props_sink = props_sink
+
     def __enter__(self) -> "RecordingElement":
         return self
 
@@ -20,6 +24,8 @@ class RecordingElement:
         return self
 
     def props(self, value: str) -> "RecordingElement":
+        if self._props_sink is not None:
+            self._props_sink.append(value)
         return self
 
     def style(self, value: str) -> "RecordingElement":
@@ -32,6 +38,7 @@ class RecordingUi:
         self.labels: list[str] = []
         self.buttons: list[str] = []
         self.button_actions: dict[str, object] = {}
+        self.button_props: dict[str, list[str]] = {}
         self.images: list[str] = []
         self.run_kwargs: dict[str, object] | None = None
 
@@ -51,7 +58,8 @@ class RecordingUi:
     def button(self, text: str, *, on_click=None) -> RecordingElement:  # noqa: ANN001
         self.buttons.append(text)
         self.button_actions[text] = on_click
-        return RecordingElement()
+        self.button_props[text] = []
+        return RecordingElement(self.button_props[text])
 
     def html(self, html: str) -> RecordingElement:
         self.labels.append(html)
@@ -168,12 +176,13 @@ def test_project_dependencies_include_nicegui_native_window_stack() -> None:
         assert dependency in requirements
 
 
-def test_readme_documents_first_nicegui_shell_without_restore_parity() -> None:
+def test_readme_documents_nicegui_single_restore_status() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
     assert "First runnable NiceGUI native-window inspector shell" in readme
     assert "NiceGUI Single image selection and raw-only preview" in readme
-    assert "NiceGUI restore parity 尚未完成" in readme
+    assert "NiceGUI Single restore and before/after comparison" in readme
+    assert "NiceGUI Batch restore parity 尚未完成" in readme
 
 
 def test_single_image_selection_shows_loading_then_raw_preview(tmp_path: Path) -> None:
@@ -267,6 +276,178 @@ def test_single_image_selection_rejects_unsupported_input_readably(
     assert snapshot.raw_preview is None
 
 
+def test_single_restore_prompts_for_image_before_running_restore() -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    state = InspectorShellState()
+
+    assert state.begin_single_restore() is None
+    assert state.snapshot().status == "Open an image before restoring."
+
+
+def test_single_restore_writes_output_and_shows_before_after_comparison(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(source, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+
+    class FakeEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            return pixels + 5
+
+    state = InspectorShellState(selected_denoising_mode="LRSEM")
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[10, 40]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+
+    state.restore_selected_single_image(FakeEngine())
+
+    snapshot = state.snapshot()
+    output = tmp_path / "denoised_LRSEM" / "wafer.tif"
+    assert output.is_file()
+    assert f"Saved: {output.name}" in snapshot.status
+    assert f"Folder: {output.parent.name}" in snapshot.status
+    assert snapshot.raw_preview is None
+    assert snapshot.comparison_preview is not None
+    assert snapshot.comparison_preview.divider_position == 0.5
+    assert snapshot.comparison_preview.raw_side == "left"
+    assert snapshot.comparison_preview.restored_side == "right"
+    assert snapshot.comparison_preview.supports_click_to_jump
+    assert snapshot.comparison_preview.supports_drag
+
+
+def test_single_restore_processing_state_disables_conflicting_controls(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+    from denoiser.models import DenoiseMode
+    from denoiser.workflow import SingleRestoreResult
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState()
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[0, 255]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+
+    state.begin_single_restore()
+
+    restoring = state.snapshot()
+    assert restoring.single_preview_state == "restoring"
+    assert restoring.status == "Restoring..."
+    assert restoring.single_controls_enabled is False
+
+    state.finish_single_restore(
+        SingleRestoreResult(
+            source_path=source,
+            output_path=tmp_path / "denoised_HRSTEM" / "wafer.tif",
+            mode=DenoiseMode.HRSTEM,
+            raw_pixels=np.array([[0, 1]], dtype=np.float32),
+            restored_pixels=np.array([[1, 2]], dtype=np.float32),
+        )
+    )
+
+    assert state.snapshot().single_controls_enabled is True
+
+
+def test_nicegui_shell_render_disables_single_controls_while_restoring(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState()
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[0, 255]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+    state.begin_single_restore()
+
+    recording_ui = RecordingUi()
+    render_nicegui_shell(ui_module=recording_ui, state=state, engine=object())
+
+    for button in ("Single", "Batch", "Open Image", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"):
+        assert "disable" in recording_ui.button_props[button]
+
+
+def test_single_restore_failure_returns_controls_to_usable_state(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState()
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[0, 255]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+
+    def fail_restore(*args):  # noqa: ANN002
+        raise RuntimeError("model failed")
+
+    state.restore_selected_single_image(object(), restore_single_image=fail_restore)
+
+    snapshot = state.snapshot()
+    assert snapshot.single_preview_state == "selected"
+    assert snapshot.status == "Cannot restore: model failed"
+    assert snapshot.single_controls_enabled is True
+    assert snapshot.raw_preview is not None
+
+
+@pytest.mark.anyio
+async def test_restore_button_runs_selected_single_restore(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(source, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+
+    class FakeEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            return pixels + 3
+
+    async def restore_runner(callback, *args):  # noqa: ANN001, ANN002
+        return callback(*args)
+
+    state = InspectorShellState(selected_denoising_mode="HRSEM")
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[10, 40]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+    recording_ui = RecordingUi()
+    render_nicegui_shell(
+        ui_module=recording_ui,
+        state=state,
+        engine=FakeEngine(),
+        restore_runner=restore_runner,
+    )
+
+    await recording_ui.button_actions["Restore"]()
+
+    output = tmp_path / "denoised_HRSEM" / "wafer.tif"
+    assert output.is_file()
+    assert state.snapshot().comparison_preview is not None
+
+
 def test_nicegui_shell_render_shows_raw_preview_without_comparison_divider(
     tmp_path: Path,
 ) -> None:
@@ -289,6 +470,38 @@ def test_nicegui_shell_render_shows_raw_preview_without_comparison_divider(
     assert "Selected image: wafer.tif" in recording_ui.labels
     assert "Existing outputs will be overwritten." in recording_ui.labels
     assert not any("divider" in label.lower() for label in recording_ui.labels)
+
+
+def test_nicegui_shell_render_shows_comparison_with_divider_interactions(
+    tmp_path: Path,
+) -> None:
+    from denoiser.models import DenoiseMode
+    from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
+    from denoiser.workflow import SingleRestoreResult
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState()
+    state.finish_single_restore(
+        SingleRestoreResult(
+            source_path=source,
+            output_path=tmp_path / "denoised_HRSTEM" / "wafer.tif",
+            mode=DenoiseMode.HRSTEM,
+            raw_pixels=np.array([[0, 1]], dtype=np.float32),
+            restored_pixels=np.array([[1, 2]], dtype=np.float32),
+        )
+    )
+
+    recording_ui = RecordingUi()
+    render_nicegui_shell(ui_module=recording_ui, state=state, engine=object())
+
+    comparison_html = "\n".join(recording_ui.labels)
+    assert "denoiser-comparison" in comparison_html
+    assert 'data-divider="0.5"' in comparison_html
+    assert 'data-raw-side="left"' in comparison_html
+    assert 'data-restored-side="right"' in comparison_html
+    assert 'type="range"' in comparison_html
+    assert "denoiser-comparison-control" in comparison_html
+    assert "oninput" in comparison_html
 
 
 @pytest.mark.anyio
