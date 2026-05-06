@@ -126,12 +126,24 @@ class InspectorShellState:
     def select_denoising_mode(self, denoising_mode: str) -> None:
         if denoising_mode not in DENOISING_MODES:
             raise ValueError(f"Unsupported denoising mode: {denoising_mode}")
+        mode_changed = denoising_mode != self.selected_denoising_mode
         self.selected_denoising_mode = denoising_mode
         if self.selected_single_image_path is not None:
             self.overwrite_output_path = _overwrite_output_path(
                 self.selected_single_image_path,
                 self.selected_denoising_mode,
             )
+        if (
+            mode_changed
+            and self.single_preview_state == "restored"
+            and self.comparison_preview is not None
+        ):
+            self.raw_preview = RawPreview(self.comparison_preview.raw_data_url)
+            self.comparison_preview = None
+            self.single_preview_state = "selected"
+            if self.selected_single_image_path is not None:
+                self.status = f"Selected image: {self.selected_single_image_path.name}"
+                self.warnings = ("Existing outputs will be overwritten.",)
 
     def select_batch_folder_path(self, path: Path) -> None:
         self.selected_workflow = "Batch"

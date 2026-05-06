@@ -148,6 +148,39 @@ def test_single_mode_change_updates_selected_image_overwrite_target(
     assert snapshot.overwrite_output_path == tmp_path / "denoised_LRSEM" / "wafer.tif"
 
 
+def test_single_mode_change_after_restore_returns_preview_to_raw(
+    tmp_path: Path,
+) -> None:
+    from denoiser.models import DenoiseMode
+    from denoiser.nicegui_shell import InspectorShellState
+    from denoiser.workflow import SingleRestoreResult
+
+    source = tmp_path / "wafer.tif"
+    state = InspectorShellState(selected_denoising_mode="HRSTEM")
+    state.finish_single_restore(
+        SingleRestoreResult(
+            source_path=source,
+            output_path=tmp_path / "denoised_HRSTEM" / "wafer.tif",
+            mode=DenoiseMode.HRSTEM,
+            raw_pixels=np.array([[0, 255]], dtype=np.uint8),
+            restored_pixels=np.array([[255, 0]], dtype=np.uint8),
+        )
+    )
+    restored = state.snapshot()
+    assert restored.comparison_preview is not None
+
+    state.select_denoising_mode("LRSEM")
+
+    snapshot = state.snapshot()
+    assert snapshot.selected_denoising_mode == "LRSEM"
+    assert snapshot.single_preview_state == "selected"
+    assert snapshot.overwrite_output_path == tmp_path / "denoised_LRSEM" / "wafer.tif"
+    assert snapshot.comparison_preview is None
+    assert snapshot.raw_preview is not None
+    assert snapshot.raw_preview.data_url == restored.comparison_preview.raw_data_url
+    assert snapshot.status == "Selected image: wafer.tif"
+
+
 def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
 
