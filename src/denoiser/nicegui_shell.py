@@ -692,9 +692,11 @@ def run_nicegui_native_window(*, ui_module: Any | None = None) -> int:
         from nicegui import ui as ui_module
     from nicegui import app as native_app
 
-    icon_source_path = _native_window_icon_path()
-    if icon_source_path is not None:
-        native_app.native.start_args["icon"] = str(icon_source_path)
+    start_icon_path = _pywebview_start_icon_path()
+    if start_icon_path is not None:
+        native_app.native.start_args["icon"] = str(start_icon_path)
+    else:
+        native_app.native.start_args.pop("icon", None)
 
     def render_root() -> None:
         render_nicegui_shell(ui_module=ui_module)
@@ -725,16 +727,12 @@ def _native_folder_dialog_type() -> Any:
     return getattr(webview, "FOLDER_DIALOG", "folder")
 
 
-def _native_window_icon_path() -> Path | None:
+def _pywebview_start_icon_path() -> Path | None:
     if sys.platform == "darwin":
         macos_icon_path = application_macos_icon_path()
         if macos_icon_path is not None:
             return macos_icon_path
-    if sys.platform == "win32":
-        windows_icon_path = application_icon_path()
-        if windows_icon_path is not None:
-            return windows_icon_path
-    return application_icon_source_path()
+    return None
 
 
 def _shell_css(tokens: dict[str, str]) -> str:

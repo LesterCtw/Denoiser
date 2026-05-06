@@ -127,6 +127,10 @@ stacks。Windows release path 仍維持 PyInstaller。
 - Windows release dependency flow 已改為 NiceGUI native window stack：release build
   安裝 `nicegui` 和 `pywebview`，不再要求 PySide6 作為 dependency。Build script
   也會用 `--collect-data nicegui` 包含 NiceGUI frontend package data。
+- Windows build script 支援 `.\scripts\build_windows.ps1 -Console` diagnostic build；
+  如果 packaged `Denoiser.exe` 啟動後立刻關閉，可以用 console build 從 PowerShell
+  執行 exe，取得 startup traceback。正式 release 預設仍使用無 console 的
+  `--windowed` build。
 - 提供 `scripts/check_dm3_pyinstaller_imports.py` 作為 DM3/DM4 PyInstaller import-chain
   probe；它會建立一個最小 frozen executable 並執行，確認 RosettaSciIO DM reader 的必要
   imports 在 frozen app 中可載入。
@@ -211,8 +215,11 @@ Windows build target：
 6. Build script 產生 folder-style release，內含帶有 app icon 的 `Denoiser.exe`、
    `_internal` runtime folder、dependencies、licenses、bundled model files、
    bundled icon asset。
-7. Developer 將 `dist\Denoiser` 壓縮成 release zip。
-8. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
+7. 如果 exe 啟動後立刻關閉，Developer 執行
+   `.\scripts\build_windows.ps1 -Console` 產生 diagnostic console build，然後從
+   PowerShell 執行 `.\dist\Denoiser\Denoiser.exe` 讀取 traceback。
+8. Developer 將 `dist\Denoiser` 壓縮成 release zip。
+9. FA engineers 只收到 release folder 或 zip，並執行 `Denoiser.exe`。
 
 End users 不需要 Python、`uv` 或 `pip`。
 

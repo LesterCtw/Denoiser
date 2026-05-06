@@ -1,3 +1,7 @@
+param(
+  [switch]$Console
+)
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -24,11 +28,16 @@ python -m pip install "tifffile>=2024.8.10"
 python -m pip install "pyinstaller>=6.10"
 python -m pip install -e . --no-deps
 
+$windowMode = if ($Console) { "--console" } else { "--windowed" }
+if ($Console) {
+  Write-Host "Building diagnostic console executable. Run dist\Denoiser\Denoiser.exe from PowerShell to capture startup errors."
+}
+
 python -m PyInstaller `
   --noconfirm `
   --clean `
   --onedir `
-  --windowed `
+  $windowMode `
   --name Denoiser `
   --icon "$iconPath" `
   --collect-data nicegui `

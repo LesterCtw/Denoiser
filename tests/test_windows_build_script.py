@@ -41,8 +41,11 @@ def test_windows_build_packages_nicegui_app_and_bundled_resources() -> None:
     script = Path("scripts/build_windows.ps1").read_text(encoding="utf-8")
 
     for option in [
+        "param(",
+        "[switch]$Console",
         "--onedir",
         "--windowed",
+        "--console",
         "--name Denoiser",
         "--icon \"$iconPath\"",
         "--collect-data nicegui",

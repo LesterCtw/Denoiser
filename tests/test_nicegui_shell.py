@@ -176,22 +176,18 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert "#5e6ad2" in recording_ui.button_styles["Restore"][0]
 
 
-def test_nicegui_shell_runs_as_standard_native_window() -> None:
+def test_nicegui_shell_runs_as_standard_native_window(monkeypatch) -> None:
     from denoiser.nicegui_shell import run_nicegui_native_window
     from nicegui import app
 
+    monkeypatch.setattr(sys, "platform", "darwin")
     recording_ui = RecordingUi()
 
     assert run_nicegui_native_window(ui_module=recording_ui) == 0
 
-    expected_native_icon_path = (
+    assert app.native.start_args["icon"] == str(
         Path("assets/icons/denoiser_icon.icns").resolve()
-        if sys.platform == "darwin"
-        else Path("assets/icons/denoiser_icon.ico").resolve()
-        if sys.platform == "win32"
-        else Path("assets/icons/denoiser_icon.png").resolve()
     )
-    assert app.native.start_args["icon"] == str(expected_native_icon_path)
     assert recording_ui.run_kwargs is not None
     root = recording_ui.run_kwargs.pop("root")
     assert callable(root)
@@ -216,19 +212,28 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
 def test_nicegui_shell_uses_windows_runtime_icon_for_native_window(
     monkeypatch,
 ) -> None:
-    from denoiser.nicegui_shell import _native_window_icon_path
+    from denoiser.nicegui_shell import run_nicegui_native_window
+    from nicegui import app
 
     monkeypatch.setattr(sys, "platform", "win32")
+    app.native.start_args["icon"] = "stale-icon-from-previous-run"
 
-    assert _native_window_icon_path() == Path("assets/icons/denoiser_icon.ico").resolve()
+    recording_ui = RecordingUi()
+
+    assert run_nicegui_native_window(ui_module=recording_ui) == 0
+    assert "icon" not in app.native.start_args
+    assert recording_ui.run_kwargs is not None
+    assert recording_ui.run_kwargs["favicon"] == Path(
+        "assets/icons/denoiser_icon.ico"
+    ).resolve()
 
 
 def test_nicegui_shell_uses_macos_native_icon_for_local_dev(monkeypatch) -> None:
-    from denoiser.nicegui_shell import _native_window_icon_path
+    from denoiser.nicegui_shell import _pywebview_start_icon_path
 
     monkeypatch.setattr(sys, "platform", "darwin")
 
-    assert _native_window_icon_path() == Path(
+    assert _pywebview_start_icon_path() == Path(
         "assets/icons/denoiser_icon.icns"
     ).resolve()
 

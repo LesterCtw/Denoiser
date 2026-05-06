@@ -222,6 +222,27 @@ Expected output:
 Build finished: <repo>\dist\Denoiser\Denoiser.exe
 ```
 
+## Diagnostic Console Build
+
+正式 release 預設使用 `--windowed`，所以 end user 不會看到 console。缺點是如果
+frozen app 在 startup crash，Windows 可能只會在 Task Manager 閃一下就關閉。
+
+遇到這種 startup 問題時，先建立 diagnostic console build：
+
+```powershell
+.\scripts\build_windows.ps1 -Console
+```
+
+然後從 PowerShell 執行 exe：
+
+```powershell
+.\dist\Denoiser\Denoiser.exe
+```
+
+Expected diagnostic behavior：如果 app startup 失敗，PowerShell 會留下 Python
+traceback 或 pywebview/NiceGUI error message。把這段輸出貼回 issue 或交給 agent
+診斷；不要只回報「視窗沒有出現」。
+
 ## Inspect the Build Output
 
 Confirm these files exist:

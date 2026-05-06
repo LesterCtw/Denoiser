@@ -125,6 +125,16 @@ Pass criteria：
 - Window/taskbar 顯示 Denoiser app icon。
 - UI 保持可讀，並符合既有 clean desktop direction。
 
+如果 `Denoiser.exe` 在 Task Manager 短暫出現後立刻關閉，回到 build machine 建立
+diagnostic console build：
+
+```powershell
+.\scripts\build_windows.ps1 -Console
+.\dist\Denoiser\Denoiser.exe
+```
+
+把 PowerShell 中留下的 traceback 或 pywebview/NiceGUI error message 記錄到驗證結果。
+
 ## Single Restore Smoke Test
 
 使用一張 longest side 不超過 `1536 px` 的 small 2D grayscale image。
@@ -225,6 +235,7 @@ Pass criteria：
 - DM3/DM4 PyInstaller import-chain probe passed: pass/fail
 - `python -m pytest` passed: pass/fail
 - Build script created `Denoiser.exe`: pass/fail
+- Diagnostic console build captured startup traceback, if needed: pass/fail/not run
 - App icon appears on `Denoiser.exe` and app window: pass/fail
 - Runtime dependencies included: pass/fail
 - Four ONNX models included: pass/fail
