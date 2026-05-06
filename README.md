@@ -427,7 +427,7 @@ Examples：
   `D:\caseA\denoised_HRSEM\wafer01.tif`
 
 如果 output filenames collision，後產生的 output 會 overwrite 前一個 output。
-UI 應清楚顯示 overwrite behavior。
+Single mode 只會在目前 mode 對應的 output file 已存在時顯示 overwrite warning。
 
 App 必須拒絕位於任何 `denoised_*` folder 裡的 input，避免不小心再次 denoise 已處理過的
 output。

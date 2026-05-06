@@ -316,7 +316,7 @@ def test_single_image_selection_shows_loading_then_raw_preview(tmp_path: Path) -
     loading = state.snapshot()
     assert loading.single_preview_state == "loading"
     assert loading.status == "Loading preview: wafer.tif"
-    assert "Existing outputs will be overwritten." in loading.warnings
+    assert "Existing outputs will be overwritten." not in loading.warnings
 
     state.finish_single_image_selection(
         SingleImageInspection(
@@ -333,6 +333,33 @@ def test_single_image_selection_shows_loading_then_raw_preview(tmp_path: Path) -
     assert selected.raw_preview is not None
     assert selected.raw_preview.is_comparing is False
     assert selected.raw_preview.data_url.startswith("data:image/png;base64,")
+    assert "Existing outputs will be overwritten." not in selected.warnings
+
+
+def test_single_image_selection_warns_when_output_already_exists(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    source = tmp_path / "wafer.tif"
+    output = tmp_path / "denoised_HRSTEM" / "wafer.tif"
+    output.parent.mkdir()
+    output.write_bytes(b"existing output")
+    state = InspectorShellState()
+
+    state.begin_single_image_selection(source)
+
+    assert "Existing outputs will be overwritten." in state.snapshot().warnings
+
+    state.finish_single_image_selection(
+        SingleImageInspection(
+            source_path=source,
+            preview_pixels=np.array([[0, 255]], dtype=np.uint8),
+            requires_patch_based_restore=False,
+        )
+    )
+
+    assert "Existing outputs will be overwritten." in state.snapshot().warnings
 
 
 def test_single_image_selection_runs_inspection_and_exposes_overwrite_target(
@@ -972,7 +999,7 @@ def test_nicegui_shell_render_shows_raw_preview_without_comparison_divider(
     assert "denoiser-preview-image" in preview_html
     assert state.snapshot().raw_preview.data_url in preview_html
     assert "Selected image: wafer.tif" in recording_ui.labels
-    assert "Existing outputs will be overwritten." in recording_ui.labels
+    assert "Existing outputs will be overwritten." not in recording_ui.labels
     assert not any("divider" in label.lower() for label in recording_ui.labels)
 
 

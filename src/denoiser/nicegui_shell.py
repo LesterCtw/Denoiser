@@ -38,6 +38,8 @@ ACTIVE_BATCH_RESTORE_STATES = {"restoring", "cancelling"}
 SUPPORTED_IMAGE_FILE_DIALOG_FILTER = (
     "Supported images (*.tif;*.tiff;*.png;*.jpg;*.jpeg;*.dm3;*.dm4)",
 )
+OVERWRITE_OUTPUT_WARNING = "Existing outputs will be overwritten."
+LARGE_IMAGE_WARNING = "Large images may take several minutes."
 
 
 @dataclass(frozen=True)
@@ -143,7 +145,7 @@ class InspectorShellState:
             self.single_preview_state = "selected"
             if self.selected_single_image_path is not None:
                 self.status = f"Selected image: {self.selected_single_image_path.name}"
-                self.warnings = ("Existing outputs will be overwritten.",)
+                self.warnings = _single_warnings_for_output(self.overwrite_output_path)
         if (
             mode_changed
             and self.batch_restore_state == "complete"
@@ -234,7 +236,7 @@ class InspectorShellState:
             Path(path),
             self.selected_denoising_mode,
         )
-        self.warnings = ("Existing outputs will be overwritten.",)
+        self.warnings = _single_warnings_for_output(self.overwrite_output_path)
         self.raw_preview = None
         self.comparison_preview = None
 
@@ -273,10 +275,13 @@ class InspectorShellState:
             inspection.source_path,
             self.selected_denoising_mode,
         )
-        warnings = ["Existing outputs will be overwritten."]
+        extra_warnings = []
         if inspection.requires_patch_based_restore:
-            warnings.append("Large images may take several minutes.")
-        self.warnings = tuple(warnings)
+            extra_warnings.append(LARGE_IMAGE_WARNING)
+        self.warnings = _single_warnings_for_output(
+            self.overwrite_output_path,
+            extra_warnings=extra_warnings,
+        )
         self.raw_preview = raw_preview(inspection.preview_pixels)
         self.comparison_preview = None
 
@@ -284,6 +289,15 @@ class InspectorShellState:
         if not self._has_restorable_single_image():
             self.status = "Open an image before restoring."
             return None
+        if self.selected_single_image_path is not None:
+            self.overwrite_output_path = _overwrite_output_path(
+                self.selected_single_image_path,
+                self.selected_denoising_mode,
+            )
+            self.warnings = _single_warnings_for_output(
+                self.overwrite_output_path,
+                extra_warnings=_non_overwrite_warnings(self.warnings),
+            )
         self.single_preview_state = "restoring"
         self.status = "Restoring..."
         return None
@@ -1314,6 +1328,22 @@ def _button_style(
 
 def _overwrite_output_path(path: Path, denoising_mode: str) -> Path:
     return output_path_for_input(path, DenoiseMode(denoising_mode))
+
+
+def _single_warnings_for_output(
+    output_path: Path | None,
+    *,
+    extra_warnings: list[str] | tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    warnings: list[str] = []
+    if output_path is not None and output_path.exists():
+        warnings.append(OVERWRITE_OUTPUT_WARNING)
+    warnings.extend(extra_warnings)
+    return tuple(warnings)
+
+
+def _non_overwrite_warnings(warnings: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(warning for warning in warnings if warning != OVERWRITE_OUTPUT_WARNING)
 
 
 def _batch_results_html(snapshot: InspectorShellSnapshot) -> str:
