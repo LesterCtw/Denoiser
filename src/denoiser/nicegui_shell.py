@@ -521,7 +521,7 @@ def render_nicegui_shell(
                     cancel_button.props("disable")
                 return
 
-            action_label = "Start Batch"
+            action_label = current.primary_action
             action_handler = restore_selected_batch
         else:
             action_label = current.primary_action

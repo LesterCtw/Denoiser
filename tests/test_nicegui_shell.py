@@ -854,7 +854,7 @@ async def test_restore_button_runs_selected_single_restore(
 
 
 @pytest.mark.anyio
-async def test_batch_buttons_select_folder_and_start_batch_restore(
+async def test_batch_buttons_select_folder_and_restore_batch(
     tmp_path: Path,
 ) -> None:
     from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
@@ -883,9 +883,10 @@ async def test_batch_buttons_select_folder_and_start_batch_restore(
         restore_runner=restore_runner,
     )
 
-    assert {"Add Folder", "Start Batch"} <= set(recording_ui.buttons)
+    assert {"Add Folder", "Restore"} <= set(recording_ui.buttons)
+    assert "Start Batch" not in recording_ui.buttons
     await recording_ui.button_actions["Add Folder"]()
-    await recording_ui.button_actions["Start Batch"]()
+    await recording_ui.button_actions["Restore"]()
 
     output = tmp_path / "denoised_LRSEM" / "wafer.tif"
     snapshot = state.snapshot()
@@ -934,7 +935,7 @@ async def test_batch_cancel_button_cancels_remaining_files_between_restores(
         restore_runner=restore_runner,
     )
 
-    batch_task = asyncio.create_task(recording_ui.button_actions["Start Batch"]())
+    batch_task = asyncio.create_task(recording_ui.button_actions["Restore"]())
     assert await asyncio.to_thread(restore_started.wait, 5)
 
     assert state.snapshot().batch_restore_state == "restoring"
@@ -963,13 +964,14 @@ async def test_batch_cancel_button_cancels_remaining_files_between_restores(
         "Not processed",
         "Not processed",
     ]
-    assert "Start Batch" in recording_ui.buttons
-    assert "disable" not in recording_ui.button_props["Start Batch"]
+    assert "Restore" in recording_ui.buttons
+    assert "Start Batch" not in recording_ui.buttons
+    assert "disable" not in recording_ui.button_props["Restore"]
     assert "disable" not in recording_ui.button_props["Add Folder"]
 
 
 @pytest.mark.anyio
-async def test_start_batch_button_prompts_when_no_folder_selected() -> None:
+async def test_batch_restore_button_prompts_when_no_folder_selected() -> None:
     from denoiser.nicegui_shell import InspectorShellState, render_nicegui_shell
 
     class EngineShouldNotRun:
@@ -980,7 +982,7 @@ async def test_start_batch_button_prompts_when_no_folder_selected() -> None:
     recording_ui = RecordingUi()
     render_nicegui_shell(ui_module=recording_ui, state=state, engine=EngineShouldNotRun())
 
-    await recording_ui.button_actions["Start Batch"]()
+    await recording_ui.button_actions["Restore"]()
 
     assert state.snapshot().status == "Add a folder before starting Batch."
 

@@ -96,7 +96,7 @@ stacks。Windows release path 仍維持 PyInstaller。
 - 使用 bundled ONNX models 的 Single-image restore workflow。
 - Single mode UI：image selection、mode buttons、Restore、自動儲存、
   animated processing indicator、success/failure 狀態。
-- Batch mode UI：folder selection、共用 mode buttons、Start Batch、progress、
+- Batch mode UI：folder selection、共用 mode buttons、Restore、progress、
   animated processing indicator、可捲動的 per-file status list。
 - Batch mode status row rendering 已集中在 dedicated presentation module，讓 per-file
   status label、detail text、badge object names 的規則有單一維護位置。
@@ -336,7 +336,7 @@ App 有兩個 modes，使用 buttons 切換：
   - 使用 `Add Folder` 選擇一個 folder。
   - 只掃描 selected folder 內的 files；不掃描 subfolders。
   - 選擇一個 denoising mode。
-  - 點擊 `Start Batch`。
+  - 點擊 `Restore`。
   - 右側顯示 progress 和可橫向捲動的 per-file status list。
 
 Layout：

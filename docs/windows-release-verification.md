@@ -165,7 +165,7 @@ Pass criteria：
 2. 點擊 `Add Folder`，確認 Batch folder dialog 開啟。
 3. 選擇 test folder。
 4. 選擇一個 mode，例如 `LRSEM`。
-5. 點擊 `Start Batch`。
+5. 點擊 `Restore`。
 
 Pass criteria：
 
