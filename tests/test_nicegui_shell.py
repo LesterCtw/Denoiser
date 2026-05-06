@@ -204,12 +204,10 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert (
         ".denoiser-section-label {\n"
         "        align-self: stretch;\n"
-        "        text-align: center;"
+        "        width: 100%;"
     ) in recording_ui.head_html[0]
-    assert (
-        ".denoiser-product-title {\n"
-        "        align-self: stretch;"
-    ) in recording_ui.head_html[0]
+    assert "grid-template-columns: 1fr;" in recording_ui.head_html[0]
+    assert "text-align: center;" not in recording_ui.head_html[0]
     assert "width: 100vw" in recording_ui.head_html[0]
     assert "height: calc(100vh - 170px)" not in recording_ui.head_html[0]
     assert "width: calc(100vw - 360px)" in recording_ui.head_html[0]

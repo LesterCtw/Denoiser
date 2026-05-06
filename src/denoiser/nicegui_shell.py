@@ -822,13 +822,10 @@ def _shell_css(tokens: dict[str, str]) -> str:
         overflow: hidden;
       }}
       .denoiser-product-title {{
-        align-self: stretch;
         color: {tokens["ink"]};
         font-size: 21px;
         font-weight: 600;
         line-height: 1.2;
-        text-align: center;
-        width: 100%;
       }}
       .denoiser-section-label,
       .denoiser-status {{
@@ -839,7 +836,6 @@ def _shell_css(tokens: dict[str, str]) -> str:
       }}
       .denoiser-section-label {{
         align-self: stretch;
-        text-align: center;
         width: 100%;
       }}
       .denoiser-warning {{
@@ -905,7 +901,7 @@ def _shell_css(tokens: dict[str, str]) -> str:
       }}
       .denoiser-mode-list {{
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 8px;
         width: 100%;
       }}
