@@ -505,6 +505,27 @@ def test_nicegui_shell_render_hides_status_progress_when_idle() -> None:
     assert "denoiser-status-progress" not in "\n".join(recording_ui.labels)
 
 
+def test_nicegui_shell_processing_status_fills_left_rail_width() -> None:
+    from denoiser.nicegui_shell import build_inspector_shell_snapshot
+    from denoiser.nicegui_shell import _shell_css
+
+    css = _shell_css(build_inspector_shell_snapshot().design_tokens)
+
+    assert (
+        ".denoiser-status-panel {\n"
+        "        align-self: stretch;\n"
+        "        width: 100%;\n"
+        "        box-sizing: border-box;"
+    ) in css
+    assert (
+        ".denoiser-status-progress-host {\n"
+        "        display: block;\n"
+        "        align-self: stretch;\n"
+        "        width: 100%;"
+    ) in css
+    assert "nicegui-html.denoiser-status-progress-host" in css
+
+
 def test_batch_folder_selection_stores_selected_folder_path(tmp_path: Path) -> None:
     from denoiser.nicegui_shell import InspectorShellState
 

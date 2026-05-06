@@ -60,7 +60,8 @@ stacks。Windows release path 仍維持 PyInstaller。
 - NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
   workflow switch、四個 denoising mode buttons、primary action area 和 pinned left
-  status area。
+  status area；restore/batch processing 時，左下角 status text 和 animated progress
+  bar 會填滿左側欄位可用寬度。
   NiceGUI restore parity 已完成。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示
@@ -139,7 +140,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   Batch presentation mapping、Single preview presentation mapping、
   NiceGUI Single UI restore behavior、Single restore processing status transition、
   NiceGUI Single/Batch processing state behavior、
-  readable Single/Batch status output、NiceGUI Batch UI progress/status behavior、
+  readable Single/Batch status output、full-width left-rail processing status layout、
+  NiceGUI Batch UI progress/status behavior、
   unclipped Batch per-file status rows、
   Single image inspection behavior、output naming、Batch restore runner orchestration、
   NiceGUI before/after comparison state and rendering contract、Single mode-change

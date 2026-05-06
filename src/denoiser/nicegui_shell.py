@@ -804,13 +804,28 @@ def _shell_css(tokens: dict[str, str]) -> str:
         line-height: 1.45;
       }}
       .denoiser-status-panel {{
+        align-self: stretch;
+        width: 100%;
+        box-sizing: border-box;
         margin-top: auto;
         gap: 6px;
         padding-top: 14px;
         border-top: 1px solid {tokens["hairline"]};
       }}
-      .denoiser-status-progress-host {{
+      .denoiser-status,
+      .denoiser-warning {{
         width: 100%;
+        box-sizing: border-box;
+      }}
+      .denoiser-status-progress-host {{
+        display: block;
+        align-self: stretch;
+        width: 100%;
+      }}
+      nicegui-html.denoiser-status-progress-host {{
+        display: block !important;
+        align-self: stretch !important;
+        width: 100% !important;
       }}
       .denoiser-status-progress {{
         position: relative;
