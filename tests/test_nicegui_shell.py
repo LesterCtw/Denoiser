@@ -694,6 +694,46 @@ def test_batch_restore_lists_restored_files_and_skipped_image_files(
     ]
 
 
+def test_batch_status_list_hides_non_image_files_for_any_status() -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+    from denoiser.workflow import BatchFileResult, BatchFileStatus, BatchRestoreStep
+
+    state = InspectorShellState(selected_workflow="Batch")
+    state.apply_batch_restore_step(
+        BatchRestoreStep(
+            file_results=[
+                BatchFileResult(
+                    source_path=Path("/case/notes.txt"),
+                    status=BatchFileStatus.SKIPPED,
+                    message="Unsupported file format: .txt",
+                ),
+                BatchFileResult(
+                    source_path=Path("/case/manifest.csv"),
+                    status=BatchFileStatus.CANCELLED,
+                    message="Not processed",
+                ),
+                BatchFileResult(
+                    source_path=Path("/case/metadata.json"),
+                    status=BatchFileStatus.FAILED,
+                    message="Unexpected error",
+                ),
+                BatchFileResult(
+                    source_path=Path("/case/wafer.tif"),
+                    status=BatchFileStatus.RESTORED,
+                    message="Restored",
+                    output_path=Path("/case/denoised_HRSTEM/wafer.tif"),
+                ),
+            ],
+            completed_count=4,
+            total_count=4,
+        )
+    )
+
+    assert [row.filename for row in state.snapshot().batch_file_results] == [
+        "wafer.tif"
+    ]
+
+
 def test_batch_mode_change_after_complete_returns_to_folder_selected_state(
     tmp_path: Path,
 ) -> None:
@@ -910,6 +950,8 @@ async def test_batch_cancel_button_cancels_remaining_files_between_restores(
             tmp_path / filename,
             np.array([[1, 2], [3, 4]], dtype=np.uint8),
         )
+    (tmp_path / "manifest.csv").write_text("filename,status")
+    (tmp_path / "yolo-trainer-project.json").write_text("{}")
 
     restore_started = threading.Event()
     finish_restore = threading.Event()
@@ -952,15 +994,20 @@ async def test_batch_cancel_button_cancels_remaining_files_between_restores(
     assert output.is_file()
     assert engine.restore_count == 1
     assert snapshot.batch_restore_state == "complete"
-    assert snapshot.batch_progress_text == "3 of 3 files"
+    assert snapshot.batch_progress_text == "5 of 5 files"
     assert (
-        "Batch complete: 1 restored, 0 failed, 0 skipped, 2 cancelled."
+        "Batch complete: 1 restored, 0 failed, 0 skipped, 4 cancelled."
         in snapshot.status
     )
     assert [row.status for row in snapshot.batch_file_results] == [
         BatchFileStatus.RESTORED,
         BatchFileStatus.CANCELLED,
         BatchFileStatus.CANCELLED,
+    ]
+    assert [row.filename for row in snapshot.batch_file_results] == [
+        "a_first.tif",
+        "b_second.tif",
+        "c_third.tif",
     ]
     assert [row.detail for row in snapshot.batch_file_results[1:]] == [
         "Not processed",

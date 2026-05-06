@@ -42,8 +42,6 @@ def visible_batch_result_rows(
 
 
 def should_show_batch_file_result(file_result: BatchFileResult) -> bool:
-    if file_result.status is not BatchFileStatus.SKIPPED:
-        return True
     return is_supported_input(file_result.source_path)
 
 
