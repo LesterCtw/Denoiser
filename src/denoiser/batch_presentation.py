@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from denoiser.image_io import is_supported_input
 from denoiser.workflow import BatchFileResult, BatchFileStatus
 
 
@@ -28,6 +29,22 @@ def batch_result_row(file_result: BatchFileResult) -> BatchResultRow:
         detail=readable_batch_detail(file_result),
         output_path=file_result.output_path,
     )
+
+
+def visible_batch_result_rows(
+    file_results: list[BatchFileResult],
+) -> tuple[BatchResultRow, ...]:
+    return tuple(
+        batch_result_row(file_result)
+        for file_result in file_results
+        if should_show_batch_file_result(file_result)
+    )
+
+
+def should_show_batch_file_result(file_result: BatchFileResult) -> bool:
+    if file_result.status is not BatchFileStatus.SKIPPED:
+        return True
+    return is_supported_input(file_result.source_path)
 
 
 def batch_status_label(status: BatchFileStatus) -> str:

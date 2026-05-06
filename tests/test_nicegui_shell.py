@@ -649,18 +649,20 @@ def test_batch_restore_blocks_denoised_folder_before_running_engine(
     assert snapshot.batch_file_results == ()
 
 
-def test_batch_restore_writes_output_and_lists_restored_and_skipped_files(
+def test_batch_restore_lists_restored_files_and_skipped_image_files(
     tmp_path: Path,
 ) -> None:
     from denoiser.nicegui_shell import InspectorShellState
     from denoiser.workflow import BatchFileStatus
 
     supported = tmp_path / "wafer.tif"
+    skipped_image = tmp_path / "stack.tif"
     unsupported = tmp_path / "notes.txt"
     nested_dir = tmp_path / "nested"
     nested_dir.mkdir()
     nested = nested_dir / "nested.tif"
     tifffile.imwrite(supported, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+    tifffile.imwrite(skipped_image, np.zeros((2, 2, 2), dtype=np.uint8))
     unsupported.write_text("skip me")
     tifffile.imwrite(nested, np.array([[99]], dtype=np.uint8))
 
@@ -680,14 +682,14 @@ def test_batch_restore_writes_output_and_lists_restored_and_skipped_files(
     assert output.is_file()
     assert not (tmp_path / "nested" / "denoised_HRSEM" / "nested.tif").exists()
     assert snapshot.batch_restore_state == "complete"
-    assert snapshot.batch_progress_text == "2 of 2 files"
-    assert "Batch complete: 1 restored, 0 failed, 1 skipped, 0 cancelled." in snapshot.status
+    assert snapshot.batch_progress_text == "3 of 3 files"
+    assert "Batch complete: 1 restored, 0 failed, 2 skipped, 0 cancelled." in snapshot.status
     assert [row.status for row in snapshot.batch_file_results] == [
         BatchFileStatus.SKIPPED,
         BatchFileStatus.RESTORED,
     ]
     assert [row.filename for row in snapshot.batch_file_results] == [
-        "notes.txt",
+        "stack.tif",
         "wafer.tif",
     ]
 

@@ -458,7 +458,8 @@ Cancellation：
 
 - Batch mode 只支援 `Add Folder`。
 - Selected folder 會 non-recursively scan。
-- Unsupported files 會 skipped，並顯示在 on-screen status list。
+- Unsupported files 會 skipped；on-screen status list 只顯示 skipped image inputs，
+  不顯示 `.txt` 這類非影像檔案。
 - On-screen status list 會依 Preview 視窗高度自動分欄，避免檔案多時往下垂直捲動。
 - Unexpected per-file restore failures 會回報為 failed，不會停止後續仍可安全處理的 files。
 - Cancelling batch 會把 remaining files 標成 cancelled，並保留已寫出的 outputs。

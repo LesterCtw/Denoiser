@@ -11,7 +11,7 @@ from denoiser.app_icon import (
     application_icon_source_path,
     application_macos_icon_path,
 )
-from denoiser.batch_presentation import BatchResultRow, batch_result_row
+from denoiser.batch_presentation import BatchResultRow, visible_batch_result_rows
 from denoiser.image_io import ImageFormatError
 from denoiser.models import DenoiseMode, supported_denoise_modes
 from denoiser.output_paths import output_path_for_input
@@ -210,9 +210,7 @@ class InspectorShellState:
         self.status = f"Cannot start Batch: {exc}"
 
     def apply_batch_restore_step(self, step: Any) -> None:
-        self.batch_file_results += tuple(
-            batch_result_row(file_result) for file_result in step.file_results
-        )
+        self.batch_file_results += visible_batch_result_rows(step.file_results)
         self.batch_progress_text = f"{step.completed_count} of {step.total_count} files"
         if step.final_result is not None:
             self.finish_batch_restore(step.final_result)
