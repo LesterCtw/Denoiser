@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import threading
 from pathlib import Path
 
@@ -183,9 +184,14 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
 
     assert run_nicegui_native_window(ui_module=recording_ui) == 0
 
-    assert app.native.start_args["icon"] == str(
+    expected_native_icon_path = (
         Path("assets/icons/denoiser_icon.icns").resolve()
+        if sys.platform == "darwin"
+        else Path("assets/icons/denoiser_icon.ico").resolve()
+        if sys.platform == "win32"
+        else Path("assets/icons/denoiser_icon.png").resolve()
     )
+    assert app.native.start_args["icon"] == str(expected_native_icon_path)
     assert recording_ui.run_kwargs is not None
     root = recording_ui.run_kwargs.pop("root")
     assert callable(root)
@@ -205,6 +211,26 @@ def test_nicegui_shell_runs_as_standard_native_window() -> None:
 
     assert "Denoiser" in recording_ui.labels
     assert "Single image inspection" not in recording_ui.labels
+
+
+def test_nicegui_shell_uses_windows_runtime_icon_for_native_window(
+    monkeypatch,
+) -> None:
+    from denoiser.nicegui_shell import _native_window_icon_path
+
+    monkeypatch.setattr(sys, "platform", "win32")
+
+    assert _native_window_icon_path() == Path("assets/icons/denoiser_icon.ico").resolve()
+
+
+def test_nicegui_shell_uses_macos_native_icon_for_local_dev(monkeypatch) -> None:
+    from denoiser.nicegui_shell import _native_window_icon_path
+
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    assert _native_window_icon_path() == Path(
+        "assets/icons/denoiser_icon.icns"
+    ).resolve()
 
 
 def test_denoiser_main_launches_nicegui_native_shell(monkeypatch) -> None:

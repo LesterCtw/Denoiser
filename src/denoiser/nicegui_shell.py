@@ -730,6 +730,10 @@ def _native_window_icon_path() -> Path | None:
         macos_icon_path = application_macos_icon_path()
         if macos_icon_path is not None:
             return macos_icon_path
+    if sys.platform == "win32":
+        windows_icon_path = application_icon_path()
+        if windows_icon_path is not None:
+            return windows_icon_path
     return application_icon_source_path()
 
 
