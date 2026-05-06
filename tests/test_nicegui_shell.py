@@ -656,6 +656,37 @@ def test_batch_restore_writes_output_and_lists_restored_and_skipped_files(
     ]
 
 
+def test_batch_mode_change_after_complete_returns_to_folder_selected_state(
+    tmp_path: Path,
+) -> None:
+    from denoiser.nicegui_shell import InspectorShellState
+
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(source, np.array([[10, 20], [30, 40]], dtype=np.uint8))
+
+    class FakeEngine:
+        def restore(self, pixels, mode):  # noqa: ANN001
+            return pixels + 4
+
+    state = InspectorShellState(selected_denoising_mode="HRSEM")
+    state.select_batch_folder_path(tmp_path)
+    state.restore_selected_batch_folder(FakeEngine())
+    completed = state.snapshot()
+    assert completed.batch_restore_state == "complete"
+    assert completed.batch_file_results != ()
+
+    state.select_denoising_mode("LRSEM")
+
+    snapshot = state.snapshot()
+    assert snapshot.selected_workflow == "Batch"
+    assert snapshot.selected_denoising_mode == "LRSEM"
+    assert snapshot.selected_batch_folder_path == tmp_path
+    assert snapshot.batch_restore_state == "folder-selected"
+    assert snapshot.batch_progress_text == "0 of 0 files"
+    assert snapshot.batch_file_results == ()
+    assert snapshot.status == f"Batch folder: {tmp_path.name}"
+
+
 def test_batch_restore_marks_failed_files_and_keeps_advancing(
     tmp_path: Path,
 ) -> None:

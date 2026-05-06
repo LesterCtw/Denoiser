@@ -78,7 +78,9 @@ stacks。Windows release path 仍維持 PyInstaller。
   native folder dialog 選擇 folder，使用現有 Batch restore workflow 執行
   non-recursive restore run，顯示 progress、dense restored/skipped/failed per-file rows，
   active run 的 Cancel action、cancelled per-file rows，以及 final
-  restored/failed/skipped/cancelled summary。
+  restored/failed/skipped/cancelled summary；Batch restore complete 後若改選不同
+  denoising mode，會清掉上一個 mode 的 processed results，回到已選 folder、尚未處理的
+  raw Batch state。
 - NiceGUI 3 native folder selection compatibility：Batch `Add Folder` 使用
   pywebview folder `create_file_dialog` API，避免 NiceGUI `WindowProxy` 沒有
   `create_folder_dialog` 時 crash。
@@ -148,6 +150,7 @@ stacks。Windows release path 仍維持 PyInstaller。
   Single image inspection behavior、output naming、Batch restore runner orchestration、
   NiceGUI before/after comparison state and rendering contract、Single mode-change
   overwrite target synchronization、Single restore-after mode-change raw preview reset、
+  Batch complete-after mode-change raw state reset、
   denoised-folder rejection、Batch selected denoised-folder blocking、
   unsupported-input rejection、multi-page TIFF rejection、Windows build script
   RosettaSciIO hidden import guard、batch cancellation、

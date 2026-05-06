@@ -144,6 +144,15 @@ class InspectorShellState:
             if self.selected_single_image_path is not None:
                 self.status = f"Selected image: {self.selected_single_image_path.name}"
                 self.warnings = ("Existing outputs will be overwritten.",)
+        if (
+            mode_changed
+            and self.batch_restore_state == "complete"
+            and self.selected_batch_folder_path is not None
+        ):
+            self.batch_restore_state = "folder-selected"
+            self.batch_progress_text = "0 of 0 files"
+            self.batch_file_results = ()
+            self.status = f"Batch folder: {self.selected_batch_folder_path.name}"
 
     def select_batch_folder_path(self, path: Path) -> None:
         self.selected_workflow = "Batch"
