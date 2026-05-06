@@ -59,9 +59,9 @@ stacks。Windows release path 仍維持 PyInstaller。
 - `src/denoiser` package layout 的專案骨架。
 - NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
   顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
-  workflow switch、四個 denoising mode buttons、primary action area 和 pinned left
-  status area；restore/batch processing 時，左下角 status text 和 animated progress
-  bar 會填滿左側欄位可用寬度。
+  workflow switch、置中的 `Denoiser` title、`Mode` label、四個 denoising mode
+  buttons、primary action area 和 pinned left status area；restore/batch processing
+  時，左下角 status text 和 animated progress bar 會填滿左側欄位可用寬度。
   NiceGUI restore parity 已完成。
 - NiceGUI Single image selection and raw-only preview：Single mode 會透過
   NiceGUI native file dialog 選擇 image，執行 Single image inspection，顯示

@@ -188,6 +188,8 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     render_nicegui_shell(ui_module=recording_ui, state=InspectorShellState())
 
     assert "Denoiser" in recording_ui.labels
+    assert "Mode" in recording_ui.labels
+    assert "Denoising mode" not in recording_ui.labels
     assert "Single image inspection" not in recording_ui.labels
     assert "Ready" in recording_ui.labels
     assert {"Single", "Batch", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"} <= set(
@@ -199,6 +201,15 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert ".denoiser-preview-frame" in recording_ui.head_html[0]
     assert ".denoiser-status-panel" in recording_ui.head_html[0]
     assert "align-items: stretch" in recording_ui.head_html[0]
+    assert (
+        ".denoiser-section-label {\n"
+        "        align-self: stretch;\n"
+        "        text-align: center;"
+    ) in recording_ui.head_html[0]
+    assert (
+        ".denoiser-product-title {\n"
+        "        align-self: stretch;"
+    ) in recording_ui.head_html[0]
     assert "width: 100vw" in recording_ui.head_html[0]
     assert "height: calc(100vh - 170px)" not in recording_ui.head_html[0]
     assert "width: calc(100vw - 360px)" in recording_ui.head_html[0]

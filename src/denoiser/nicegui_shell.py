@@ -672,7 +672,7 @@ def render_nicegui_shell(
 
                 path_controls()
 
-                ui_module.label("Denoising mode").classes("denoiser-section-label")
+                ui_module.label("Mode").classes("denoiser-section-label")
                 mode_controls()
 
                 action_controls()
@@ -822,10 +822,13 @@ def _shell_css(tokens: dict[str, str]) -> str:
         overflow: hidden;
       }}
       .denoiser-product-title {{
+        align-self: stretch;
         color: {tokens["ink"]};
         font-size: 21px;
         font-weight: 600;
         line-height: 1.2;
+        text-align: center;
+        width: 100%;
       }}
       .denoiser-section-label,
       .denoiser-status {{
@@ -833,6 +836,11 @@ def _shell_css(tokens: dict[str, str]) -> str:
         font-size: 13px;
         line-height: 1.45;
         white-space: pre-line;
+      }}
+      .denoiser-section-label {{
+        align-self: stretch;
+        text-align: center;
+        width: 100%;
       }}
       .denoiser-warning {{
         color: {tokens["primary"]};
