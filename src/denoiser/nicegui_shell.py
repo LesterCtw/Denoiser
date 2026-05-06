@@ -761,6 +761,7 @@ def _shell_css(tokens: dict[str, str]) -> str:
         background: {tokens["canvas"]};
       }}
       .denoiser-shell {{
+        width: 100vw;
         height: 100vh;
         background: {tokens["canvas"]};
         color: {tokens["ink"]};
@@ -1057,9 +1058,22 @@ def _shell_css(tokens: dict[str, str]) -> str:
       .denoiser-batch-results {{
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
+        align-self: stretch;
         gap: 10px;
+        width: 100%;
+        height: 100%;
         min-height: 0;
         overflow: hidden;
+      }}
+      nicegui-html.denoiser-batch-results {{
+        display: block !important;
+        flex: 1 1 auto !important;
+        align-self: stretch !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
       }}
       .denoiser-batch-progress {{
         color: {tokens["ink-muted"]};
@@ -1067,11 +1081,15 @@ def _shell_css(tokens: dict[str, str]) -> str:
         line-height: 1.4;
       }}
       .denoiser-batch-list {{
-        display: flex;
-        flex-direction: column;
-        gap: 0;
+        display: block;
+        flex: 1 1 auto;
+        width: 100%;
         min-height: 0;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: hidden;
+        column-width: clamp(300px, 32vw, 420px);
+        column-gap: 10px;
+        column-fill: auto;
         border: 1px solid {tokens["hairline"]};
         border-radius: 8px;
         background: {tokens["surface-1"]};
@@ -1087,6 +1105,8 @@ def _shell_css(tokens: dict[str, str]) -> str:
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
         align-items: center;
+        box-sizing: border-box;
+        break-inside: avoid;
         min-height: 42px;
         padding: 8px 10px;
         border-bottom: 1px solid {tokens["hairline"]};

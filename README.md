@@ -333,7 +333,7 @@ App 有兩個 modes，使用 buttons 切換：
   - 只掃描 selected folder 內的 files；不掃描 subfolders。
   - 選擇一個 denoising mode。
   - 點擊 `Start Batch`。
-  - 右側顯示 progress 和可捲動的 per-file status list。
+  - 右側顯示 progress 和可橫向捲動的 per-file status list。
 
 Layout：
 
@@ -343,7 +343,8 @@ Layout：
   - Single mode：選圖後顯示 raw-only preview；restore 後顯示 before/after
     comparison，不顯示額外 heading。
   - Batch mode：右側 heading 顯示 `Batch Restore`，下方顯示 progress 和 dense
-    scrollable per-file list；不顯示 image preview。
+    per-file list；清單會填滿 Preview 高度，先往下排列，滿高後換到下一個
+    column，檔案很多時只往橫向捲動；不顯示 image preview。
 
 ## Image comparison behavior
 
@@ -454,6 +455,7 @@ Cancellation：
 - Batch mode 只支援 `Add Folder`。
 - Selected folder 會 non-recursively scan。
 - Unsupported files 會 skipped，並顯示在 on-screen status list。
+- On-screen status list 會依 Preview 視窗高度自動分欄，避免檔案多時往下垂直捲動。
 - Unexpected per-file restore failures 會回報為 failed，不會停止後續仍可安全處理的 files。
 - Cancelling batch 會把 remaining files 標成 cancelled，並保留已寫出的 outputs。
 - Final batch status 會 summary restored、failed、skipped、cancelled counts。

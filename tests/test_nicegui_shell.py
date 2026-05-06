@@ -199,6 +199,7 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert ".denoiser-preview-frame" in recording_ui.head_html[0]
     assert ".denoiser-status-panel" in recording_ui.head_html[0]
     assert "align-items: stretch" in recording_ui.head_html[0]
+    assert "width: 100vw" in recording_ui.head_html[0]
     assert "height: calc(100vh - 170px)" not in recording_ui.head_html[0]
     assert "width: calc(100vw - 360px)" in recording_ui.head_html[0]
     assert "height: calc(100vh - 54px)" in recording_ui.head_html[0]
@@ -722,6 +723,10 @@ def test_nicegui_shell_render_shows_batch_progress_rows_and_readable_badges() ->
     assert "denoiser-batch-status-skipped" in batch_html
     assert "text-overflow: ellipsis" in recording_ui.head_html[0]
     assert "min-height: 42px" in recording_ui.head_html[0]
+    assert "column-fill: auto" in recording_ui.head_html[0]
+    assert "overflow-x: auto" in recording_ui.head_html[0]
+    assert "overflow-y: hidden" in recording_ui.head_html[0]
+    assert "break-inside: avoid" in recording_ui.head_html[0]
 
 
 def test_nicegui_shell_render_shows_unframed_empty_batch_state() -> None:
