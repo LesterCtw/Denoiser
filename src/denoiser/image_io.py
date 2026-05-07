@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
 from fractions import Fraction
@@ -55,6 +56,9 @@ LENGTH_UNITS_TO_NM = {
     "micrometer": 1000.0,
     "micrometers": 1000.0,
 }
+
+NANOMETERS_PER_CENTIMETER = 10_000_000.0
+NANOMETERS_PER_INCH = 25_400_000.0
 
 
 class ImageFormatError(ValueError):
@@ -181,7 +185,7 @@ def _load_pillow_image(path: Path) -> ImageData:
 def _load_tiff_image(path: Path) -> ImageData:
     with tifffile.TiffFile(path) as tif:
         series = _single_2d_tiff_series(tif)
-        metadata = _safe_tiff_metadata(tif.pages[0].tags, series.axes)
+        metadata = _safe_tiff_metadata(tif, series.axes)
         array = series.asarray()
     return _image_data_from_array(path, array, SourceKind.STANDARD, metadata=metadata)
 
@@ -217,13 +221,14 @@ def _load_dm_image(path: Path) -> ImageData:
     return _image_data_from_array(path, signal["data"], SourceKind.DM, metadata=metadata)
 
 
-def _safe_tiff_metadata(tags: tifffile.TiffTags, series_axes: str) -> dict[str, Any]:
+def _safe_tiff_metadata(tif: tifffile.TiffFile, series_axes: str) -> dict[str, Any]:
+    tags = tif.pages[0].tags
     safe_metadata: dict[str, Any] = {}
     notes: list[str] = []
 
     description = tags.get("ImageDescription")
     if description is not None and isinstance(description.value, str):
-        if _is_safe_tiff_description(description.value, series_axes):
+        if _is_safe_tiff_description(description.value):
             safe_metadata["description"] = description.value
         else:
             notes.append("Skipped unsafe TIFF metadata tag: ImageDescription")
@@ -253,14 +258,25 @@ def _safe_tiff_metadata(tags: tifffile.TiffTags, series_axes: str) -> dict[str, 
     if text_tags:
         safe_metadata["text_tags"] = text_tags
 
+    physical_pixel_size = (
+        _physical_pixel_size_from_standard_tiff_tags(tags)
+        or _physical_pixel_size_from_ome_metadata(tif.ome_metadata, series_axes)
+        or _physical_pixel_size_from_imagej_metadata(tif.imagej_metadata, tags)
+    )
+    if physical_pixel_size is not None:
+        safe_metadata["physical_pixel_size_nm"] = {
+            "x": physical_pixel_size.x,
+            "y": physical_pixel_size.y,
+        }
+
     metadata: dict[str, Any] = {"tiff": safe_metadata}
     if notes:
         metadata["metadata_notes"] = notes
     return metadata
 
 
-def _is_safe_tiff_description(value: str, series_axes: str) -> bool:
-    if _is_ome_tiff_description(value) and series_axes != "YX":
+def _is_safe_tiff_description(value: str) -> bool:
+    if _is_ome_tiff_description(value) or _is_imagej_tiff_description(value):
         return False
 
     try:
@@ -274,6 +290,10 @@ def _is_ome_tiff_description(value: str) -> bool:
     return "<OME " in value[:512] or "<OME>" in value[:512]
 
 
+def _is_imagej_tiff_description(value: str) -> bool:
+    return value.startswith("ImageJ=")
+
+
 def _tiff_write_options(image: ImageData) -> dict[str, Any]:
     options: dict[str, Any] = {"metadata": None}
 
@@ -282,13 +302,12 @@ def _tiff_write_options(image: ImageData) -> dict[str, Any]:
         if pixel_size is None:
             return options
         return {
-            "imagej": True,
-            "metadata": {"unit": "nm"},
             "resolution": (
-                _pixels_per_nm_resolution(pixel_size.x),
-                _pixels_per_nm_resolution(pixel_size.y),
+                _pixels_per_centimeter_resolution(pixel_size.x),
+                _pixels_per_centimeter_resolution(pixel_size.y),
             ),
-            "resolutionunit": "NONE",
+            "resolutionunit": "CENTIMETER",
+            "metadata": None,
         }
 
     if image.source_kind is not SourceKind.STANDARD:
@@ -308,6 +327,14 @@ def _tiff_write_options(image: ImageData) -> dict[str, Any]:
         if extratags:
             options["extratags"] = extratags
 
+    pixel_size = _physical_pixel_size_from_tiff_metadata(tiff_metadata)
+    if pixel_size is not None:
+        options["resolution"] = (
+            _pixels_per_centimeter_resolution(pixel_size.x),
+            _pixels_per_centimeter_resolution(pixel_size.y),
+        )
+        options["resolutionunit"] = "CENTIMETER"
+
     return options
 
 
@@ -318,6 +345,167 @@ def _tiff_text_extratags(text_tags: dict[Any, Any]) -> list[tuple[int, str, int,
         if isinstance(value, str):
             extratags.append((tag_code, "s", 0, value, True))
     return extratags
+
+
+def _physical_pixel_size_from_standard_tiff_tags(
+    tags: tifffile.TiffTags,
+) -> _PhysicalPixelSizeNm | None:
+    resolution_unit = tags.get("ResolutionUnit")
+    x_resolution = tags.get("XResolution")
+    y_resolution = tags.get("YResolution")
+    if resolution_unit is None or x_resolution is None or y_resolution is None:
+        return None
+
+    try:
+        unit_code = int(resolution_unit.value)
+    except (TypeError, ValueError):
+        return None
+
+    if unit_code == 3:
+        unit_nm = NANOMETERS_PER_CENTIMETER
+    elif unit_code == 2:
+        unit_nm = NANOMETERS_PER_INCH
+    else:
+        return None
+
+    return _physical_pixel_size_from_resolution(
+        x_resolution.value,
+        y_resolution.value,
+        unit_nm,
+    )
+
+
+def _physical_pixel_size_from_imagej_metadata(
+    imagej_metadata: dict[str, Any] | None,
+    tags: tifffile.TiffTags,
+) -> _PhysicalPixelSizeNm | None:
+    if not isinstance(imagej_metadata, dict):
+        return None
+
+    unit_factor = LENGTH_UNITS_TO_NM.get(
+        _normalise_length_unit(imagej_metadata.get("unit"))
+    )
+    if unit_factor is None:
+        return None
+
+    x_resolution = tags.get("XResolution")
+    y_resolution = tags.get("YResolution")
+    if x_resolution is None or y_resolution is None:
+        return None
+
+    return _physical_pixel_size_from_resolution(
+        x_resolution.value,
+        y_resolution.value,
+        unit_factor,
+    )
+
+
+def _physical_pixel_size_from_ome_metadata(
+    ome_metadata: str | None,
+    series_axes: str,
+) -> _PhysicalPixelSizeNm | None:
+    if not isinstance(ome_metadata, str) or series_axes != "YX":
+        return None
+
+    try:
+        root = ET.fromstring(ome_metadata)
+    except ET.ParseError:
+        return None
+
+    pixels = _first_ome_pixels_element(root)
+    if pixels is None:
+        return None
+
+    x_scale = _ome_physical_size_nm(pixels, "X")
+    y_scale = _ome_physical_size_nm(pixels, "Y")
+    if x_scale is None or y_scale is None:
+        return None
+
+    return _PhysicalPixelSizeNm(x=x_scale, y=y_scale)
+
+
+def _first_ome_pixels_element(root: ET.Element) -> ET.Element | None:
+    for element in root.iter():
+        if _xml_local_name(element.tag) == "Pixels":
+            return element
+    return None
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", maxsplit=1)[-1]
+
+
+def _ome_physical_size_nm(pixels: ET.Element, axis: str) -> float | None:
+    try:
+        scale = float(pixels.attrib[f"PhysicalSize{axis}"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if not math.isfinite(scale) or scale <= 0:
+        return None
+
+    unit_factor = LENGTH_UNITS_TO_NM.get(
+        _normalise_length_unit(pixels.attrib.get(f"PhysicalSize{axis}Unit"))
+    )
+    if unit_factor is None:
+        return None
+
+    return scale * unit_factor
+
+
+def _physical_pixel_size_from_resolution(
+    x_resolution: Any,
+    y_resolution: Any,
+    unit_nm: float,
+) -> _PhysicalPixelSizeNm | None:
+    x_pixels_per_unit = _resolution_value(x_resolution)
+    y_pixels_per_unit = _resolution_value(y_resolution)
+    if x_pixels_per_unit is None or y_pixels_per_unit is None:
+        return None
+
+    return _PhysicalPixelSizeNm(
+        x=unit_nm / x_pixels_per_unit,
+        y=unit_nm / y_pixels_per_unit,
+    )
+
+
+def _resolution_value(value: Any) -> float | None:
+    if isinstance(value, tuple) and len(value) == 2:
+        numerator, denominator = value
+        try:
+            result = float(numerator) / float(denominator)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+    else:
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+
+    if not math.isfinite(result) or result <= 0:
+        return None
+    return result
+
+
+def _physical_pixel_size_from_tiff_metadata(
+    tiff_metadata: dict[str, Any],
+) -> _PhysicalPixelSizeNm | None:
+    pixel_size = tiff_metadata.get("physical_pixel_size_nm")
+    if not isinstance(pixel_size, dict):
+        return None
+
+    try:
+        x_scale = float(pixel_size["x"])
+        y_scale = float(pixel_size["y"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if not math.isfinite(x_scale) or not math.isfinite(y_scale):
+        return None
+    if x_scale <= 0 or y_scale <= 0:
+        return None
+
+    return _PhysicalPixelSizeNm(x=x_scale, y=y_scale)
 
 
 def _dm_physical_pixel_size_nm(image: ImageData) -> _PhysicalPixelSizeNm | None:
@@ -424,9 +612,10 @@ def _normalise_length_unit(units: Any) -> str:
     return str(units).strip().lower().replace(" ", "")
 
 
-def _pixels_per_nm_resolution(nm_per_pixel: float) -> tuple[int, int]:
-    pixels_per_nm = Fraction(str(1.0 / nm_per_pixel)).limit_denominator(1_000_000)
-    return (pixels_per_nm.numerator, pixels_per_nm.denominator)
+def _pixels_per_centimeter_resolution(nm_per_pixel: float) -> tuple[int, int]:
+    pixels_per_centimeter = NANOMETERS_PER_CENTIMETER / nm_per_pixel
+    resolution = Fraction(str(pixels_per_centimeter)).limit_denominator(1_000_000)
+    return (resolution.numerator, resolution.denominator)
 
 
 def _safe_png_metadata(info: dict[str, Any]) -> dict[str, Any]:

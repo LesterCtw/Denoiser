@@ -103,7 +103,7 @@ def test_tiff_skips_shape_description_that_would_conflict_with_output(tmp_path: 
         assert "ImageDescription" not in tif.pages[0].tags
 
 
-def test_ome_tiff_preserves_physical_size_metadata(tmp_path: Path) -> None:
+def test_ome_tiff_pixel_size_is_exported_as_standard_resolution_tags(tmp_path: Path) -> None:
     source = tmp_path / "ome.tif"
     tifffile.imwrite(
         source,
@@ -122,12 +122,12 @@ def test_ome_tiff_preserves_physical_size_metadata(tmp_path: Path) -> None:
     output = save_restored_image(image, image.pixels + 1, DenoiseMode.HRSEM)
 
     with tifffile.TiffFile(output) as tif:
-        description = tif.pages[0].tags["ImageDescription"].value
-        assert tif.is_ome
-        assert 'PhysicalSizeX="0.5"' in description
-        assert 'PhysicalSizeXUnit="um"' in description
-        assert 'PhysicalSizeY="1.25"' in description
-        assert 'PhysicalSizeYUnit="um"' in description
+        tags = tif.pages[0].tags
+        assert not tif.is_ome
+        assert "ImageDescription" not in tags
+        assert tags["XResolution"].value == (20000, 1)
+        assert tags["YResolution"].value == (8000, 1)
+        assert tags["ResolutionUnit"].value == 3
 
 
 def test_tiff_skips_ome_description_after_rgb_to_grayscale(tmp_path: Path) -> None:
@@ -174,7 +174,7 @@ def test_dm_source_saves_float32_tiff_without_promising_metadata_parity(tmp_path
         assert "ImageDescription" not in tif.pages[0].tags
 
 
-def test_dm_source_preserves_nm_pixel_size_as_imagej_tiff_metadata(tmp_path: Path) -> None:
+def test_dm_source_exports_nm_pixel_size_as_standard_resolution_tags(tmp_path: Path) -> None:
     image = ImageData(
         source_path=tmp_path / "wafer.dm3",
         pixels=np.array([[1, 2], [3, 4]], dtype=np.float32),
@@ -208,11 +208,10 @@ def test_dm_source_preserves_nm_pixel_size_as_imagej_tiff_metadata(tmp_path: Pat
 
     with tifffile.TiffFile(output) as tif:
         tags = tif.pages[0].tags
-        assert tif.is_imagej
-        assert tif.imagej_metadata["unit"] == "nm"
-        assert tags["XResolution"].value == (2, 1)
-        assert tags["YResolution"].value == (4, 5)
-        assert tags["ResolutionUnit"].value == 1
+        assert not tif.is_imagej
+        assert tags["XResolution"].value == (20000000, 1)
+        assert tags["YResolution"].value == (8000000, 1)
+        assert tags["ResolutionUnit"].value == 3
 
 
 def test_load_dm_image_keeps_reader_axes_for_output_metadata(
@@ -257,12 +256,13 @@ def test_load_dm_image_keeps_reader_axes_for_output_metadata(
 
     with tifffile.TiffFile(output) as tif:
         tags = tif.pages[0].tags
-        assert tif.imagej_metadata["unit"] == "nm"
-        assert tags["XResolution"].value == (2, 1)
-        assert tags["YResolution"].value == (1, 1)
+        assert not tif.is_imagej
+        assert tags["XResolution"].value == (20000000, 1)
+        assert tags["YResolution"].value == (10000000, 1)
+        assert tags["ResolutionUnit"].value == 3
 
 
-def test_imagej_tiff_preserves_nm_pixel_size_metadata(tmp_path: Path) -> None:
+def test_imagej_tiff_pixel_size_is_exported_as_standard_resolution_tags(tmp_path: Path) -> None:
     source = tmp_path / "wafer.tif"
     tifffile.imwrite(
         source,
@@ -277,10 +277,10 @@ def test_imagej_tiff_preserves_nm_pixel_size_metadata(tmp_path: Path) -> None:
 
     with tifffile.TiffFile(output) as tif:
         tags = tif.pages[0].tags
-        assert tif.is_imagej
-        assert tif.imagej_metadata["unit"] == "nm"
-        assert tags["XResolution"].value == (2, 1)
-        assert tags["YResolution"].value == (1, 1)
+        assert not tif.is_imagej
+        assert tags["XResolution"].value == (20000000, 1)
+        assert tags["YResolution"].value == (10000000, 1)
+        assert tags["ResolutionUnit"].value == 3
 
 
 def test_prepare_output_rejects_shape_mismatch(tmp_path: Path) -> None:
