@@ -58,7 +58,7 @@ stacks。Windows release path 仍維持 PyInstaller。
 
 - `src/denoiser` package layout 的專案骨架。
 - NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
-  顯示 Linear-style dark shell、left control rail、right work area、Single/Batch
+  顯示 Denoiser dark inspection shell、left control rail、right work area、Single/Batch
   workflow switch、左側對齊的 `Denoiser` title、`Mode` label、直排四個
   denoising mode buttons、primary action area 和 pinned left status area；
   restore/batch processing 時，左下角 status text 和 animated progress bar
@@ -112,9 +112,10 @@ stacks。Windows release path 仍維持 PyInstaller。
   before/after compare view、50% 初始 divider、drag interaction、click-to-jump
   interaction；restore 後切換到不同 denoising mode 會清掉 comparison，回到 raw-only
   preview。
-- Single mode image selection：使用 Single image inspection module 在 background
-  thread 執行 preview inspection，讓 UI 可以先顯示 loading/status，不必等 image
-  load 和 large-image 判斷完成。
+- Single mode image selection：使用 Single image inspection module 執行 preview
+  inspection，讓 UI 可以顯示 loading/status、raw preview 和 large-image 判斷。
+  這個 preview inspection 目前不是獨立 background thread；大圖 preview load 時
+  UI 可能短暫等待。Restore processing 仍會透過 NiceGUI `run.io_bound` 在背景執行。
 - 第一版支援格式的 image I/O boundary。
 - TIFF single-2D validation 已集中在 image I/O boundary，同一組 multi-page/stack-like
   rejection rules 同時服務 image dimensions inspection 和 full image loading。
@@ -265,9 +266,12 @@ uv run python scripts/inspect_tiff_metadata.py measurable.tif denoised_output.ti
 
 ```text
 Denoiser/
+  AGENTS.md
   pyproject.toml
   uv.lock
   requirements.txt
+  package.json
+  package-lock.json
   README.md
   CONTEXT.md
   DESIGN.md
@@ -286,7 +290,13 @@ Denoiser/
     sfr_lrstem.onnx
   scripts/
     build_windows.ps1
+    check_dm3_pyinstaller_imports.py
+    inspect_tiff_metadata.py
   docs/
+    agents/
+      domain.md
+      issue-tracker.md
+      triage-labels.md
     adr/
       0001-use-pyside6-for-windows-desktop-ui.md
       0002-bundle-onnx-models-for-offline-cpu-runtime.md
@@ -307,6 +317,7 @@ Denoiser/
       nicegui_shell.py
       output_paths.py
       preview_presentation.py
+      runtime_paths.py
       single_image_inspection.py
       workflow.py
   tests/
@@ -322,6 +333,7 @@ Denoiser/
     test_preview_presentation.py
     test_single_image_inspection.py
     test_single_workflow.py
+    test_tiff_metadata_script.py
     test_windows_build_script.py
 ```
 
