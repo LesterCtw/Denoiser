@@ -250,6 +250,17 @@ Build script 會額外傳入 `--hidden-import rsciio.utils._distributed`、`--hi
 python .\scripts\check_dm3_pyinstaller_imports.py
 ```
 
+若要檢查一張 TIFF 是否帶有可供 Gatan/DigitalMicrograph 量測的 standard TIFF
+calibration tags，或比較 ThermoFisher 可量測 TIFF 與 Denoiser output TIFF 的
+metadata 差異：
+
+```bash
+uv run python scripts/inspect_tiff_metadata.py measurable.tif denoised_output.tif
+```
+
+第一個檔案會作為 comparison reference。輸出會列出 `XResolution`、`YResolution`、
+`ResolutionUnit` 推算出的 nm/px，以及兩張 TIFF 的 tag 差異。
+
 ## Repository layout
 
 ```text
