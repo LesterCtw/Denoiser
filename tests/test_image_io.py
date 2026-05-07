@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import rsciio.digitalmicrograph
 import tifffile
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -60,20 +62,34 @@ def test_save_tiff_preserves_safe_standard_metadata(tmp_path: Path) -> None:
         assert tags["ResolutionUnit"].value == 3
 
 
-def test_tiff_skips_unsupported_metadata_with_note(tmp_path: Path) -> None:
+def test_save_tiff_preserves_common_text_metadata_tags(tmp_path: Path) -> None:
     source = tmp_path / "wafer.tif"
     tifffile.imwrite(
         source,
         np.array([[10, 20], [30, 40]], dtype=np.uint8),
-        extratags=[(315, "s", 0, "operator-a", True)],
+        extratags=[
+            (269, "s", 0, "doc-name", True),
+            (285, "s", 0, "page-name", True),
+            (271, "s", 0, "scope-maker", True),
+            (272, "s", 0, "scope-model", True),
+            (315, "s", 0, "operator-a", True),
+            (316, "s", 0, "host-a", True),
+            (33432, "s", 0, "copyright-a", True),
+        ],
     )
 
     image = load_image(source)
     output = save_restored_image(image, image.pixels, DenoiseMode.LRSEM)
 
-    assert "Skipped unsupported TIFF metadata tag: Artist" in image.metadata["metadata_notes"]
     with tifffile.TiffFile(output) as tif:
-        assert "Artist" not in tif.pages[0].tags
+        tags = tif.pages[0].tags
+        assert tags["DocumentName"].value == "doc-name"
+        assert tags["PageName"].value == "page-name"
+        assert tags["Make"].value == "scope-maker"
+        assert tags["Model"].value == "scope-model"
+        assert tags["Artist"].value == "operator-a"
+        assert tags["HostComputer"].value == "host-a"
+        assert tags["Copyright"].value == "copyright-a"
 
 
 def test_tiff_skips_shape_description_that_would_conflict_with_output(tmp_path: Path) -> None:
@@ -84,6 +100,57 @@ def test_tiff_skips_shape_description_that_would_conflict_with_output(tmp_path: 
     output = save_restored_image(image, image.pixels, DenoiseMode.HRSEM)
 
     with tifffile.TiffFile(output) as tif:
+        assert "ImageDescription" not in tif.pages[0].tags
+
+
+def test_ome_tiff_preserves_physical_size_metadata(tmp_path: Path) -> None:
+    source = tmp_path / "ome.tif"
+    tifffile.imwrite(
+        source,
+        np.array([[10, 20], [30, 40]], dtype=np.uint16),
+        ome=True,
+        metadata={
+            "axes": "YX",
+            "PhysicalSizeX": 0.5,
+            "PhysicalSizeXUnit": "um",
+            "PhysicalSizeY": 1.25,
+            "PhysicalSizeYUnit": "um",
+        },
+    )
+
+    image = load_image(source)
+    output = save_restored_image(image, image.pixels + 1, DenoiseMode.HRSEM)
+
+    with tifffile.TiffFile(output) as tif:
+        description = tif.pages[0].tags["ImageDescription"].value
+        assert tif.is_ome
+        assert 'PhysicalSizeX="0.5"' in description
+        assert 'PhysicalSizeXUnit="um"' in description
+        assert 'PhysicalSizeY="1.25"' in description
+        assert 'PhysicalSizeYUnit="um"' in description
+
+
+def test_tiff_skips_ome_description_after_rgb_to_grayscale(tmp_path: Path) -> None:
+    source = tmp_path / "rgb_ome.tif"
+    tifffile.imwrite(
+        source,
+        np.zeros((2, 2, 3), dtype=np.uint8),
+        photometric="rgb",
+        ome=True,
+        metadata={
+            "axes": "YXS",
+            "PhysicalSizeX": 0.5,
+            "PhysicalSizeXUnit": "um",
+            "PhysicalSizeY": 1.25,
+            "PhysicalSizeYUnit": "um",
+        },
+    )
+
+    image = load_image(source)
+    output = save_restored_image(image, image.pixels, DenoiseMode.HRSEM)
+
+    with tifffile.TiffFile(output) as tif:
+        assert not tif.is_ome
         assert "ImageDescription" not in tif.pages[0].tags
 
 
@@ -105,6 +172,115 @@ def test_dm_source_saves_float32_tiff_without_promising_metadata_parity(tmp_path
     assert saved.dtype == np.float32
     with tifffile.TiffFile(output) as tif:
         assert "ImageDescription" not in tif.pages[0].tags
+
+
+def test_dm_source_preserves_nm_pixel_size_as_imagej_tiff_metadata(tmp_path: Path) -> None:
+    image = ImageData(
+        source_path=tmp_path / "wafer.dm3",
+        pixels=np.array([[1, 2], [3, 4]], dtype=np.float32),
+        source_dtype=np.dtype(np.float32),
+        source_min=1.0,
+        source_max=4.0,
+        source_kind=SourceKind.DM,
+        metadata={
+            "axes": [
+                {
+                    "name": "y",
+                    "size": 2,
+                    "index_in_array": 0,
+                    "scale": 1.25,
+                    "units": "nm",
+                    "navigate": False,
+                },
+                {
+                    "name": "x",
+                    "size": 2,
+                    "index_in_array": 1,
+                    "scale": 0.5,
+                    "units": "nm",
+                    "navigate": False,
+                },
+            ],
+        },
+    )
+
+    output = save_restored_image(image, image.pixels, DenoiseMode.HRSTEM)
+
+    with tifffile.TiffFile(output) as tif:
+        tags = tif.pages[0].tags
+        assert tif.is_imagej
+        assert tif.imagej_metadata["unit"] == "nm"
+        assert tags["XResolution"].value == (2, 1)
+        assert tags["YResolution"].value == (4, 5)
+        assert tags["ResolutionUnit"].value == 1
+
+
+def test_load_dm_image_keeps_reader_axes_for_output_metadata(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    source = tmp_path / "wafer.dm3"
+    source.write_bytes(b"synthetic placeholder")
+
+    def fake_file_reader(filename: str) -> list[dict[str, Any]]:
+        assert filename == str(source)
+        return [
+            {
+                "data": np.array([[1, 2], [3, 4]], dtype=np.float32),
+                "metadata": {},
+                "original_metadata": {},
+                "axes": [
+                    {
+                        "name": "y",
+                        "size": 2,
+                        "index_in_array": 0,
+                        "scale": 0.001,
+                        "units": "um",
+                        "navigate": False,
+                    },
+                    {
+                        "name": "x",
+                        "size": 2,
+                        "index_in_array": 1,
+                        "scale": 0.0005,
+                        "units": "um",
+                        "navigate": False,
+                    },
+                ],
+            }
+        ]
+
+    monkeypatch.setattr(rsciio.digitalmicrograph, "file_reader", fake_file_reader)
+
+    image = load_image(source)
+    output = save_restored_image(image, image.pixels, DenoiseMode.HRSEM)
+
+    with tifffile.TiffFile(output) as tif:
+        tags = tif.pages[0].tags
+        assert tif.imagej_metadata["unit"] == "nm"
+        assert tags["XResolution"].value == (2, 1)
+        assert tags["YResolution"].value == (1, 1)
+
+
+def test_imagej_tiff_preserves_nm_pixel_size_metadata(tmp_path: Path) -> None:
+    source = tmp_path / "wafer.tif"
+    tifffile.imwrite(
+        source,
+        np.array([[10, 20], [30, 40]], dtype=np.uint8),
+        imagej=True,
+        resolution=(2.0, 1.0),
+        metadata={"unit": "nm"},
+    )
+
+    image = load_image(source)
+    output = save_restored_image(image, image.pixels + 1, DenoiseMode.HRSTEM)
+
+    with tifffile.TiffFile(output) as tif:
+        tags = tif.pages[0].tags
+        assert tif.is_imagej
+        assert tif.imagej_metadata["unit"] == "nm"
+        assert tags["XResolution"].value == (2, 1)
+        assert tags["YResolution"].value == (1, 1)
 
 
 def test_prepare_output_rejects_shape_mismatch(tmp_path: Path) -> None:

@@ -7,10 +7,12 @@ normalization to output files.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from enum import Enum
+from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import tifffile
@@ -31,23 +33,27 @@ SUPPORTED_INPUT_EXTENSIONS = {
     ".dm4",
 }
 
-SAFE_TIFF_TAGS = {
-    "ImageDescription",
-    "Software",
-    "DateTime",
-    "XResolution",
-    "YResolution",
-    "ResolutionUnit",
+COMMON_TIFF_TEXT_TAGS = {
+    "Artist": 315,
+    "Copyright": 33432,
+    "DocumentName": 269,
+    "HostComputer": 316,
+    "Make": 271,
+    "Model": 272,
+    "PageName": 285,
 }
 
-TIFF_METADATA_TAGS_TO_NOTE = {
-    "Artist",
-    "Copyright",
-    "DocumentName",
-    "HostComputer",
-    "Make",
-    "Model",
-    "PageName",
+LENGTH_UNITS_TO_NM = {
+    "nm": 1.0,
+    "nanometer": 1.0,
+    "nanometers": 1.0,
+    "um": 1000.0,
+    "\u00b5m": 1000.0,
+    "\u03bcm": 1000.0,
+    "micron": 1000.0,
+    "microns": 1000.0,
+    "micrometer": 1000.0,
+    "micrometers": 1000.0,
 }
 
 
@@ -77,6 +83,12 @@ class ImageData:
     @property
     def width(self) -> int:
         return int(self.pixels.shape[1])
+
+
+@dataclass(frozen=True)
+class _PhysicalPixelSizeNm:
+    x: float
+    y: float
 
 
 def is_supported_input(path: Path) -> bool:
@@ -169,7 +181,7 @@ def _load_pillow_image(path: Path) -> ImageData:
 def _load_tiff_image(path: Path) -> ImageData:
     with tifffile.TiffFile(path) as tif:
         series = _single_2d_tiff_series(tif)
-        metadata = _safe_tiff_metadata(tif.pages[0].tags)
+        metadata = _safe_tiff_metadata(tif.pages[0].tags, series.axes)
         array = series.asarray()
     return _image_data_from_array(path, array, SourceKind.STANDARD, metadata=metadata)
 
@@ -205,13 +217,13 @@ def _load_dm_image(path: Path) -> ImageData:
     return _image_data_from_array(path, signal["data"], SourceKind.DM, metadata=metadata)
 
 
-def _safe_tiff_metadata(tags: tifffile.TiffTags) -> dict[str, Any]:
+def _safe_tiff_metadata(tags: tifffile.TiffTags, series_axes: str) -> dict[str, Any]:
     safe_metadata: dict[str, Any] = {}
     notes: list[str] = []
 
     description = tags.get("ImageDescription")
     if description is not None and isinstance(description.value, str):
-        if _is_safe_tiff_description(description.value):
+        if _is_safe_tiff_description(description.value, series_axes):
             safe_metadata["description"] = description.value
         else:
             notes.append("Skipped unsafe TIFF metadata tag: ImageDescription")
@@ -233,9 +245,13 @@ def _safe_tiff_metadata(tags: tifffile.TiffTags) -> dict[str, Any]:
     if x_resolution is not None and y_resolution is not None:
         safe_metadata["resolution"] = (x_resolution.value, y_resolution.value)
 
-    for tag in tags.values():
-        if tag.name in TIFF_METADATA_TAGS_TO_NOTE and tag.name not in SAFE_TIFF_TAGS:
-            notes.append(f"Skipped unsupported TIFF metadata tag: {tag.name}")
+    text_tags: dict[str, str] = {}
+    for tag_name in COMMON_TIFF_TEXT_TAGS:
+        tag = tags.get(tag_name)
+        if tag is not None and isinstance(tag.value, str):
+            text_tags[tag_name] = tag.value
+    if text_tags:
+        safe_metadata["text_tags"] = text_tags
 
     metadata: dict[str, Any] = {"tiff": safe_metadata}
     if notes:
@@ -243,7 +259,10 @@ def _safe_tiff_metadata(tags: tifffile.TiffTags) -> dict[str, Any]:
     return metadata
 
 
-def _is_safe_tiff_description(value: str) -> bool:
+def _is_safe_tiff_description(value: str, series_axes: str) -> bool:
+    if _is_ome_tiff_description(value) and series_axes != "YX":
+        return False
+
     try:
         decoded = json.loads(value)
     except json.JSONDecodeError:
@@ -251,8 +270,26 @@ def _is_safe_tiff_description(value: str) -> bool:
     return not (isinstance(decoded, dict) and "shape" in decoded)
 
 
+def _is_ome_tiff_description(value: str) -> bool:
+    return "<OME " in value[:512] or "<OME>" in value[:512]
+
+
 def _tiff_write_options(image: ImageData) -> dict[str, Any]:
     options: dict[str, Any] = {"metadata": None}
+
+    if image.source_kind is SourceKind.DM:
+        pixel_size = _dm_physical_pixel_size_nm(image)
+        if pixel_size is None:
+            return options
+        return {
+            "imagej": True,
+            "metadata": {"unit": "nm"},
+            "resolution": (
+                _pixels_per_nm_resolution(pixel_size.x),
+                _pixels_per_nm_resolution(pixel_size.y),
+            ),
+            "resolutionunit": "NONE",
+        }
 
     if image.source_kind is not SourceKind.STANDARD:
         return options
@@ -265,7 +302,131 @@ def _tiff_write_options(image: ImageData) -> dict[str, Any]:
         if key in tiff_metadata:
             options[key] = tiff_metadata[key]
 
+    text_tags = tiff_metadata.get("text_tags", {})
+    if isinstance(text_tags, dict):
+        extratags = _tiff_text_extratags(text_tags)
+        if extratags:
+            options["extratags"] = extratags
+
     return options
+
+
+def _tiff_text_extratags(text_tags: dict[Any, Any]) -> list[tuple[int, str, int, str, bool]]:
+    extratags: list[tuple[int, str, int, str, bool]] = []
+    for tag_name, tag_code in COMMON_TIFF_TEXT_TAGS.items():
+        value = text_tags.get(tag_name)
+        if isinstance(value, str):
+            extratags.append((tag_code, "s", 0, value, True))
+    return extratags
+
+
+def _dm_physical_pixel_size_nm(image: ImageData) -> _PhysicalPixelSizeNm | None:
+    axes = image.metadata.get("axes")
+    if not isinstance(axes, list) or image.pixels.ndim != 2:
+        return None
+
+    shape = image.pixels.shape
+    y_axis = _dm_axis_for_dimension(axes, shape, 0, "y")
+    x_axis = _dm_axis_for_dimension(axes, shape, 1, "x")
+    if x_axis is None or y_axis is None:
+        return None
+
+    x_scale = _axis_scale_nm_per_pixel(x_axis)
+    y_scale = _axis_scale_nm_per_pixel(y_axis)
+    if x_scale is None or y_scale is None:
+        return None
+
+    return _PhysicalPixelSizeNm(x=x_scale, y=y_scale)
+
+
+def _dm_axis_for_dimension(
+    axes: list[Any],
+    shape: tuple[int, int],
+    dimension_index: int,
+    axis_name: str,
+) -> dict[str, Any] | None:
+    named_axis = _first_matching_axis(
+        axes,
+        shape,
+        dimension_index,
+        lambda axis: _axis_name(axis) == axis_name,
+    )
+    if named_axis is not None:
+        return named_axis
+
+    return _first_matching_axis(
+        axes,
+        shape,
+        dimension_index,
+        lambda axis: _axis_index(axis) == dimension_index,
+    )
+
+
+def _first_matching_axis(
+    axes: list[Any],
+    shape: tuple[int, int],
+    dimension_index: int,
+    predicate: Callable[[dict[str, Any]], bool],
+) -> dict[str, Any] | None:
+    for axis in axes:
+        if (
+            isinstance(axis, dict)
+            and predicate(axis)
+            and _axis_matches_dimension_size(axis, shape, dimension_index)
+        ):
+            return axis
+    return None
+
+
+def _axis_name(axis: dict[str, Any]) -> str:
+    return str(axis.get("name", "")).strip().lower()
+
+
+def _axis_index(axis: dict[str, Any]) -> int | None:
+    try:
+        return int(axis.get("index_in_array"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _axis_matches_dimension_size(
+    axis: dict[str, Any],
+    shape: tuple[int, int],
+    dimension_index: int,
+) -> bool:
+    size = axis.get("size")
+    if size is None:
+        return True
+
+    try:
+        return int(size) == int(shape[dimension_index])
+    except (TypeError, ValueError):
+        return False
+
+
+def _axis_scale_nm_per_pixel(axis: dict[str, Any]) -> float | None:
+    try:
+        scale = float(axis.get("scale"))
+    except (TypeError, ValueError):
+        return None
+
+    if not math.isfinite(scale) or scale <= 0:
+        return None
+
+    unit_factor = LENGTH_UNITS_TO_NM.get(_normalise_length_unit(axis.get("units")))
+    if unit_factor is None:
+        return None
+
+    return scale * unit_factor
+
+
+def _normalise_length_unit(units: Any) -> str:
+    return str(units).strip().lower().replace(" ", "")
+
+
+def _pixels_per_nm_resolution(nm_per_pixel: float) -> tuple[int, int]:
+    pixels_per_nm = Fraction(str(1.0 / nm_per_pixel)).limit_denominator(1_000_000)
+    return (pixels_per_nm.numerator, pixels_per_nm.denominator)
 
 
 def _safe_png_metadata(info: dict[str, Any]) -> dict[str, Any]:

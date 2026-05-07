@@ -124,8 +124,11 @@ stacks。Windows release path 仍維持 PyInstaller。
   stretching。
 - Large-image patch-based restore path，預設 `patch_size=512`、`stride=256`、
   `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
-- Conservative metadata preservation：TIFF 保留 safe standard metadata，PNG 保留
-  safe text metadata；unsupported metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
+- Conservative metadata preservation：TIFF 會盡可能保留 safe standard tags、
+  common text tags、ImageJ metadata 和 safe single-2D OME-TIFF metadata；PNG 保留
+  safe text metadata；DM3/DM4 若 reader axes 提供可信的 nm/um X/Y pixel size，
+  會在輸出 TIFF 寫入 ImageJ `unit=nm` 和 X/Y resolution；其他 unsupported 或可能
+  描述錯 output shape/channel 的 metadata 會保守跳過，DM3/DM4 不承諾完整 metadata parity。
 - Windows build script 會明確包含 RosettaSciIO DM3/DM4 reader 的 lazy-loaded
   `rsciio.utils._distributed` module，以及 RosettaSciIO dependency 中可能不會被 app
   直接 import 的 `pint`、`yaml`，避免 PyInstaller frozen app 讀取 `.dm3` / `.dm4`
@@ -158,7 +161,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   batch failure isolation、JPEG-to-TIFF output、PNG/TIFF output preservation、
   Batch result row state formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
   uint16 TIFF clipping、
-  conservative TIFF/PNG metadata preservation。
+  conservative TIFF/PNG metadata preservation、common TIFF text tags preservation、
+  ImageJ/OME-TIFF metadata preservation、DM3/DM4 physical pixel size preservation。
 
 尚未實作：
 
@@ -403,10 +407,19 @@ RGB/RGBA inputs 可接受，但會轉成 grayscale 供 model processing。Alpha 
 
 Metadata 應在安全可行時保留。對無法安全寫回的 formats，尤其 `.dm3` 和 `.dm4`，
 output 會寫成 TIFF；只有在安全時，才把可用 metadata 帶入 TIFF metadata 或相鄰 sidecar。
+TIFF 目前會保留常見且可安全重寫的 metadata：`ImageDescription`、`Software`、
+`DateTime`、X/Y resolution、resolution unit、`Artist`、`Copyright`、
+`DocumentName`、`HostComputer`、`Make`、`Model`、`PageName`，以及 ImageJ metadata。
+single-2D grayscale OME-TIFF 會保留 OME-XML；如果 input 是 RGB/RGBA 並會被轉成
+grayscale，會跳過 OME-XML，避免 output metadata 繼續宣稱它是 multi-channel image。
+`.dm3` / `.dm4` 若 RosettaSciIO reader axes 提供可信的 X/Y physical pixel size
+（目前支援 `nm` 和 `um`/micrometer units），輸出 TIFF 會用 ImageJ metadata 寫入
+`unit=nm`，並用 X/Y resolution 表示 pixels per nm，讓 downstream tools 可以還原
+nm/px。
 
 MVS metadata policy 採保守策略：盡可能保留 safe standard metadata，但絕不為了強迫
-metadata round-tripping 而冒著 corrupt output image 的風險。完整 `.dm3` / `.dm4`
-metadata parity 不是第一版需求。
+metadata round-tripping 而冒著 corrupt output image 或寫入錯誤 metadata 的風險。
+完整 `.dm3` / `.dm4` metadata parity 不是第一版需求。
 
 第一版會拒絕 multi-page TIFF 和 stack-like data。每個 input file 只支援一張 single
 2D image。
