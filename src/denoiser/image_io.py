@@ -59,6 +59,7 @@ LENGTH_UNITS_TO_NM = {
 
 NANOMETERS_PER_CENTIMETER = 10_000_000.0
 NANOMETERS_PER_INCH = 25_400_000.0
+TIFF_RATIONAL_UINT32_MAX = 4_294_967_295
 
 
 class ImageFormatError(ValueError):
@@ -301,11 +302,11 @@ def _tiff_write_options(image: ImageData) -> dict[str, Any]:
         pixel_size = _dm_physical_pixel_size_nm(image)
         if pixel_size is None:
             return options
+        resolution = _tiff_resolution_from_pixel_size(pixel_size)
+        if resolution is None:
+            return options
         return {
-            "resolution": (
-                _pixels_per_centimeter_resolution(pixel_size.x),
-                _pixels_per_centimeter_resolution(pixel_size.y),
-            ),
+            "resolution": resolution,
             "resolutionunit": "CENTIMETER",
             "metadata": None,
         }
@@ -329,11 +330,10 @@ def _tiff_write_options(image: ImageData) -> dict[str, Any]:
 
     pixel_size = _physical_pixel_size_from_tiff_metadata(tiff_metadata)
     if pixel_size is not None:
-        options["resolution"] = (
-            _pixels_per_centimeter_resolution(pixel_size.x),
-            _pixels_per_centimeter_resolution(pixel_size.y),
-        )
-        options["resolutionunit"] = "CENTIMETER"
+        resolution = _tiff_resolution_from_pixel_size(pixel_size)
+        if resolution is not None:
+            options["resolution"] = resolution
+            options["resolutionunit"] = "CENTIMETER"
 
     return options
 
@@ -612,9 +612,24 @@ def _normalise_length_unit(units: Any) -> str:
     return str(units).strip().lower().replace(" ", "")
 
 
-def _pixels_per_centimeter_resolution(nm_per_pixel: float) -> tuple[int, int]:
+def _tiff_resolution_from_pixel_size(
+    pixel_size: _PhysicalPixelSizeNm,
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    x_resolution = _pixels_per_centimeter_resolution(pixel_size.x)
+    y_resolution = _pixels_per_centimeter_resolution(pixel_size.y)
+    if x_resolution is None or y_resolution is None:
+        return None
+    return (x_resolution, y_resolution)
+
+
+def _pixels_per_centimeter_resolution(nm_per_pixel: float) -> tuple[int, int] | None:
     pixels_per_centimeter = NANOMETERS_PER_CENTIMETER / nm_per_pixel
     resolution = Fraction(str(pixels_per_centimeter)).limit_denominator(1_000_000)
+    if (
+        resolution.numerator > TIFF_RATIONAL_UINT32_MAX
+        or resolution.denominator > TIFF_RATIONAL_UINT32_MAX
+    ):
+        return None
     return (resolution.numerator, resolution.denominator)
 
 

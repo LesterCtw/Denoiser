@@ -128,9 +128,10 @@ stacks。Windows release path 仍維持 PyInstaller。
 - Conservative metadata preservation：TIFF output 只寫標準 TIFF tags，會盡可能保留
   safe standard tags 和 common text tags；PNG 保留 safe text metadata；DM3/DM4 若
   reader axes 提供可信的 nm/um X/Y pixel size，會用標準 TIFF `XResolution`、
-  `YResolution`、`ResolutionUnit=CENTIMETER` 寫入 pixel calibration；其他
-  unsupported 或可能描述錯 output shape/channel 的 metadata 會保守跳過，DM3/DM4
-  不承諾完整 metadata parity。
+  `YResolution`、`ResolutionUnit=CENTIMETER` 寫入 pixel calibration；若 calibration
+  無法安全表示成 TIFF rational tags，會保守跳過 calibration tags 以避免 corrupt
+  output；其他 unsupported 或可能描述錯 output shape/channel 的 metadata 也會保守跳過，
+  DM3/DM4 不承諾完整 metadata parity。
 - Windows build script 會明確包含 RosettaSciIO DM3/DM4 reader 的 lazy-loaded
   `rsciio.utils._distributed` module，以及 RosettaSciIO dependency 中可能不會被 app
   直接 import 的 `pint`、`yaml`，避免 PyInstaller frozen app 讀取 `.dm3` / `.dm4`
@@ -164,7 +165,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   Batch result row state formatting、RGB/RGBA-to-grayscale conversion、overwrite behavior、
   uint16 TIFF clipping、
   conservative TIFF/PNG metadata preservation、common TIFF text tags preservation、
-  standard TIFF pixel calibration preservation、DM3/DM4 physical pixel size preservation。
+  standard TIFF pixel calibration preservation、DM3/DM4 physical pixel size preservation、
+  DM3/DM4 unrepresentable calibration skip behavior。
 
 尚未實作：
 
@@ -442,6 +444,8 @@ Gatan/DigitalMicrograph 這類讀標準 TIFF calibration tags 的工具有機會
 `.dm3` / `.dm4` 若 RosettaSciIO reader axes 提供可信的 X/Y physical pixel size
 （目前支援 `nm` 和 `um`/micrometer units），輸出 TIFF 也會用同一組標準 TIFF
 resolution tags 表示 pixels per centimeter，讓 downstream tools 可以還原 nm/px。
+如果這組 calibration 會產生超出 TIFF rational tag 32-bit 範圍的數值，Denoiser 會跳過
+`ResolutionUnit=CENTIMETER` calibration tags，優先保證 output TIFF 可正常開啟。
 
 MVS metadata policy 採保守策略：盡可能保留 safe standard metadata，但絕不為了強迫
 metadata round-tripping 而冒著 corrupt output image 或寫入錯誤 metadata 的風險。
