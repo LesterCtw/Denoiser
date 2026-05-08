@@ -154,22 +154,30 @@ def test_tiff_skips_ome_description_after_rgb_to_grayscale(tmp_path: Path) -> No
         assert "ImageDescription" not in tif.pages[0].tags
 
 
-def test_dm_source_saves_float32_tiff_without_promising_metadata_parity(tmp_path: Path) -> None:
+def test_dm_source_saves_viewer_friendly_uint16_tiff_without_metadata_parity(
+    tmp_path: Path,
+) -> None:
     image = ImageData(
         source_path=tmp_path / "wafer.dm3",
-        pixels=np.array([[1, 2], [3, 4]], dtype=np.float32),
+        pixels=np.array([[1000, 2000], [3000, 4000]], dtype=np.float32),
         source_dtype=np.dtype(np.float32),
-        source_min=1.0,
-        source_max=4.0,
+        source_min=1000.0,
+        source_max=4000.0,
         source_kind=SourceKind.DM,
         metadata={"original_metadata": {"Microscope": "DM"}, "metadata": {"Signal": "STEM"}},
     )
+    restored = np.array([[1250.2, 2000.4], [3000.6, 4500.9]], dtype=np.float32)
 
-    output = save_restored_image(image, image.pixels + 0.5, DenoiseMode.HRSTEM)
+    output = save_restored_image(image, restored, DenoiseMode.HRSTEM)
 
     assert output == tmp_path / "denoised_HRSTEM" / "wafer.tif"
     saved = tifffile.imread(output)
-    assert saved.dtype == np.float32
+    assert saved.dtype == np.uint16
+    np.testing.assert_array_equal(
+        saved,
+        np.array([[1250, 2000], [3001, 4000]], dtype=np.uint16),
+    )
+    assert not np.all(saved == np.iinfo(np.uint16).max)
     with tifffile.TiffFile(output) as tif:
         assert "ImageDescription" not in tif.pages[0].tags
 
@@ -249,8 +257,8 @@ def test_dm_source_saves_readable_tiff_when_pixel_size_is_too_small_for_resoluti
     output = save_restored_image(image, image.pixels, DenoiseMode.HRSTEM)
 
     saved = tifffile.imread(output)
-    assert saved.dtype == np.float32
-    np.testing.assert_array_equal(saved, image.pixels)
+    assert saved.dtype == np.uint16
+    np.testing.assert_array_equal(saved, image.pixels.astype(np.uint16))
     with tifffile.TiffFile(output) as tif:
         tags = tif.pages[0].tags
         resolution_unit = tags.get("ResolutionUnit")

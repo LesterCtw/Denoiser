@@ -166,7 +166,9 @@ def prepare_output_pixels(image: ImageData, restored_pixels: np.ndarray) -> np.n
     clipped = np.clip(restored.astype(np.float32, copy=False), image.source_min, image.source_max)
 
     if image.source_kind is SourceKind.DM:
-        return clipped.astype(np.float32, copy=False)
+        clipped = np.rint(clipped)
+        clipped = np.clip(clipped, 0, np.iinfo(np.uint16).max)
+        return clipped.astype(np.uint16, copy=False)
 
     dtype = image.source_dtype
     if np.issubdtype(dtype, np.integer):

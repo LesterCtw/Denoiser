@@ -121,8 +121,9 @@ stacks。Windows release path 仍維持 PyInstaller。
   rejection rules 同時服務 image dimensions inspection 和 full image loading。
 - 使用獨立 output path rules module 管理 `denoised_MODE` folders、output suffix、
   overwrite target，以及 `denoised_*` input rejection。
-- Output dtype/range preparation：clip 到原圖 min/max，避免 automatic contrast
-  stretching。
+- Output dtype/range preparation：一般 image formats 會 clip 到原圖 min/max，避免
+  automatic contrast stretching；DM3/DM4 會輸出 viewer-friendly `uint16` TIFF，
+  避免 packaged release 產生的 float TIFF 在常見 viewer 中顯示成全白。
 - Large-image patch-based restore path，預設 `patch_size=512`、`stride=256`、
   `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
 - Conservative metadata preservation：TIFF output 只寫標準 TIFF tags，會盡可能保留
@@ -422,12 +423,16 @@ Output rules：
 | `.tif` / `.tiff` | Same extension      |
 | `.png`           | `.png`              |
 | `.jpg` / `.jpeg` | `.tif`              |
-| `.dm3` / `.dm4`  | 32-bit float `.tif` |
+| `.dm3` / `.dm4`  | `uint16` `.tif`     |
 
 一般 image formats 的 output 應盡可能保留原始 bit depth。Model processing 內部可使用
 `float32`，但 saved output 不得使用 automatic contrast stretching、histogram
 equalization 或 min/max rescaling。如果 model output 超出原圖實際 value range，儲存前
 會 clip 到原圖 min/max。
+
+`.dm3` / `.dm4` input 會輸出 `uint16` TIFF。原因是部分 Windows/image viewer 對
+32-bit float TIFF 的顯示規則不一致，可能把實際有資料的 output 顯示成全白；改成
+`uint16` 會犧牲 float output 的精度，但讓第一版 release output 更容易直接開啟檢查。
 
 RGB/RGBA inputs 可接受，但會轉成 grayscale 供 model processing。Alpha channels 不會保留。
 
