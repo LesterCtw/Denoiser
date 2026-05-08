@@ -121,9 +121,10 @@ stacks。Windows release path 仍維持 PyInstaller。
   rejection rules 同時服務 image dimensions inspection 和 full image loading。
 - 使用獨立 output path rules module 管理 `denoised_MODE` folders、output suffix、
   overwrite target，以及 `denoised_*` input rejection。
-- Output dtype/range preparation：一般 image formats 會 clip 到原圖 min/max，避免
-  automatic contrast stretching；DM3/DM4 會輸出 viewer-friendly `uint16` TIFF，
-  避免 packaged release 產生的 float TIFF 在常見 viewer 中顯示成全白。
+- Output dtype/range preparation：standard image formats 會保留原始 dtype 並 clip 到
+  原圖 min/max；DM3/DM4 會先 clip 到原圖 min/max，再線性映射到 viewer-friendly
+  `uint16` TIFF，避免 packaged release 產生的 float TIFF 或小範圍 float values 在常見
+  viewer 中顯示成全白或接近全黑。
 - Large-image patch-based restore path，預設 `patch_size=512`、`stride=256`、
   `batch_size=2`，並在 Single mode 顯示處理可能需要數分鐘的 warning。
 - Conservative metadata preservation：TIFF output 只寫標準 TIFF tags，會盡可能保留
@@ -425,14 +426,16 @@ Output rules：
 | `.jpg` / `.jpeg` | `.tif`              |
 | `.dm3` / `.dm4`  | `uint16` `.tif`     |
 
-一般 image formats 的 output 應盡可能保留原始 bit depth。Model processing 內部可使用
-`float32`，但 saved output 不得使用 automatic contrast stretching、histogram
-equalization 或 min/max rescaling。如果 model output 超出原圖實際 value range，儲存前
-會 clip 到原圖 min/max。
+Standard image formats 的 output 應盡可能保留原始 dtype 和 bit depth。Model processing
+內部可使用 `float32`，但 standard saved output 不得使用 automatic contrast stretching、
+histogram equalization 或 min/max rescaling。如果 model output 超出原圖實際 value
+range，儲存前會 clip 到原圖 min/max。這代表 floating-point TIFF 仍會輸出
+floating-point TIFF；這保留數值語意，但某些一般 viewer 可能需要手動調整 display range。
 
-`.dm3` / `.dm4` input 會輸出 `uint16` TIFF。原因是部分 Windows/image viewer 對
-32-bit float TIFF 的顯示規則不一致，可能把實際有資料的 output 顯示成全白；改成
-`uint16` 會犧牲 float output 的精度，但讓第一版 release output 更容易直接開啟檢查。
+`.dm3` 和 `.dm4` input 是例外：output 會先 clip 到原圖實際 min/max，再把這個 range
+線性映射到 `uint16` TIFF 的完整 0..65535 range。原因是 DM3/DM4 在目前 I/O stack 中是
+read-only microscope-native formats，必須 export as TIFF；改成 `uint16` full-range
+export 會犧牲 float output 的原始數值精度，但讓第一版 release output 更容易直接開啟檢查。
 
 RGB/RGBA inputs 可接受，但會轉成 grayscale 供 model processing。Alpha channels 不會保留。
 
@@ -465,6 +468,9 @@ Single 和 Batch 使用相同的 saving concept：
 
 - Output 寫入原始 image 旁邊、對應 mode 的 subfolder。
 - Output filename 保持相同，除非 output format 改變。
+- 如果 output format 改成 `.tif`，原始副檔名會保留在 output filename 中，避免
+  `sample.tif`、`sample.jpg`、`sample.dm3` 這類同 stem inputs 在同一個 mode folder
+  靜默覆蓋彼此。
 - Existing files 會被 overwrite。
 - Original raw files 不會複製到 output folder。
 
@@ -473,9 +479,10 @@ Examples：
 - `D:\caseA\wafer01.tif` with `HRSTEM` ->
   `D:\caseA\denoised_HRSTEM\wafer01.tif`
 - `D:\caseA\wafer01.jpg` with `HRSEM` ->
-  `D:\caseA\denoised_HRSEM\wafer01.tif`
+  `D:\caseA\denoised_HRSEM\wafer01.jpg.tif`
+- `D:\caseA\wafer01.dm3` with `HRSTEM` ->
+  `D:\caseA\denoised_HRSTEM\wafer01.dm3.tif`
 
-如果 output filenames collision，後產生的 output 會 overwrite 前一個 output。
 Single mode 只會在目前 mode 對應的 output file 已存在時顯示 overwrite warning。
 
 App 必須拒絕位於任何 `denoised_*` folder 裡的 input，避免不小心再次 denoise 已處理過的

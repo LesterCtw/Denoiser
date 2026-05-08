@@ -4,12 +4,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytest
 import rsciio.digitalmicrograph
 import tifffile
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 from denoiser.models import DenoiseMode
+from denoiser.preview_presentation import raw_preview_data_url
 from denoiser.image_io import (
     ImageData,
     ImageFormatError,
@@ -35,6 +37,65 @@ def test_load_and_save_uint16_tiff_preserves_dtype_and_clips(tmp_path: Path) -> 
     assert output == tmp_path / "denoised_LRSTEM" / "wafer.tif"
     assert saved.dtype == np.uint16
     np.testing.assert_array_equal(saved, np.array([[100, 210], [391, 400]], dtype=np.uint16))
+
+
+@pytest.mark.parametrize(
+    ("filename", "pixels", "writer", "expected_suffix", "expected_dtype"),
+    [
+        ("wafer.tif", np.array([[10, 20], [30, 40]], dtype=np.uint8), "tiff", ".tif", np.uint8),
+        (
+            "wafer.tiff",
+            np.array([[1000, 2000], [3000, 4000]], dtype=np.uint16),
+            "tiff",
+            ".tiff",
+            np.uint16,
+        ),
+        (
+            "float.tif",
+            np.array([[0.0, 0.25], [0.75, 1.0]], dtype=np.float32),
+            "tiff",
+            ".tif",
+            np.float32,
+        ),
+        ("wafer.png", np.array([[10, 20], [30, 40]], dtype=np.uint8), "pillow", ".png", np.uint8),
+        (
+            "wafer16.png",
+            np.array([[1000, 2000], [3000, 4000]], dtype=np.uint16),
+            "pillow",
+            ".png",
+            np.uint16,
+        ),
+        ("photo.jpg", np.array([[10, 80], [160, 240]], dtype=np.uint8), "pillow", ".tif", np.uint8),
+        ("photo.jpeg", np.array([[10, 80], [160, 240]], dtype=np.uint8), "pillow", ".tif", np.uint8),
+    ],
+)
+def test_supported_standard_formats_load_preview_save_and_reopen(
+    tmp_path: Path,
+    filename: str,
+    pixels: np.ndarray,
+    writer: str,
+    expected_suffix: str,
+    expected_dtype: type[np.generic],
+) -> None:
+    source = tmp_path / filename
+    if writer == "tiff":
+        tifffile.imwrite(source, pixels)
+    else:
+        Image.fromarray(pixels).save(source)
+
+    image = load_image(source)
+    assert image.pixels.shape == pixels.shape
+    assert raw_preview_data_url(image.pixels).startswith("data:image/png;base64,")
+
+    output = save_restored_image(image, image.pixels, DenoiseMode.HRSTEM)
+
+    assert output.suffix == expected_suffix
+    if output.suffix in {".tif", ".tiff"}:
+        saved = tifffile.imread(output)
+    else:
+        saved = np.asarray(Image.open(output))
+    assert saved.shape == pixels.shape
+    assert saved.dtype == expected_dtype
 
 
 def test_save_tiff_preserves_safe_standard_metadata(tmp_path: Path) -> None:
@@ -170,16 +231,38 @@ def test_dm_source_saves_viewer_friendly_uint16_tiff_without_metadata_parity(
 
     output = save_restored_image(image, restored, DenoiseMode.HRSTEM)
 
-    assert output == tmp_path / "denoised_HRSTEM" / "wafer.tif"
+    assert output == tmp_path / "denoised_HRSTEM" / "wafer.dm3.tif"
     saved = tifffile.imread(output)
     assert saved.dtype == np.uint16
     np.testing.assert_array_equal(
         saved,
-        np.array([[1250, 2000], [3001, 4000]], dtype=np.uint16),
+        np.array([[5466, 21854], [43703, 65535]], dtype=np.uint16),
     )
-    assert not np.all(saved == np.iinfo(np.uint16).max)
+    assert saved.min() > 0
+    assert saved.max() == np.iinfo(np.uint16).max
     with tifffile.TiffFile(output) as tif:
         assert "ImageDescription" not in tif.pages[0].tags
+
+
+def test_dm_source_scales_float_range_to_visible_uint16_tiff(tmp_path: Path) -> None:
+    image = ImageData(
+        source_path=tmp_path / "wafer.dm3",
+        pixels=np.array([[-1.0, 0.0], [0.5, 1.0]], dtype=np.float32),
+        source_dtype=np.dtype(np.float32),
+        source_min=-1.0,
+        source_max=1.0,
+        source_kind=SourceKind.DM,
+    )
+    restored = np.array([[-0.8, 0.0], [0.5, 1.2]], dtype=np.float32)
+
+    output = save_restored_image(image, restored, DenoiseMode.HRSTEM)
+
+    saved = tifffile.imread(output)
+    assert saved.dtype == np.uint16
+    np.testing.assert_array_equal(
+        saved,
+        np.array([[6553, 32768], [49151, 65535]], dtype=np.uint16),
+    )
 
 
 def test_dm_source_exports_nm_pixel_size_as_standard_resolution_tags(tmp_path: Path) -> None:
@@ -258,7 +341,8 @@ def test_dm_source_saves_readable_tiff_when_pixel_size_is_too_small_for_resoluti
 
     saved = tifffile.imread(output)
     assert saved.dtype == np.uint16
-    np.testing.assert_array_equal(saved, image.pixels.astype(np.uint16))
+    assert saved.min() == 0
+    assert saved.max() == np.iinfo(np.uint16).max
     with tifffile.TiffFile(output) as tif:
         tags = tif.pages[0].tags
         resolution_unit = tags.get("ResolutionUnit")
@@ -354,7 +438,7 @@ def test_jpeg_saves_as_tiff(tmp_path: Path) -> None:
     image = load_image(source)
     output = save_restored_image(image, image.pixels, DenoiseMode.HRSEM)
 
-    assert output == tmp_path / "denoised_HRSEM" / "photo.tif"
+    assert output == tmp_path / "denoised_HRSEM" / "photo.jpg.tif"
     assert tifffile.imread(output).dtype == np.uint8
 
 

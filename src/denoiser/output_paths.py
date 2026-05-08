@@ -20,4 +20,9 @@ def output_suffix_for_input(path: Path) -> str:
 
 def output_path_for_input(path: Path, mode: DenoiseMode) -> Path:
     output_dir = path.parent / bundled_model_for(mode).output_folder
-    return output_dir / f"{path.stem}{output_suffix_for_input(path)}"
+    output_suffix = output_suffix_for_input(path)
+    if path.suffix.lower() == output_suffix:
+        output_name = path.name
+    else:
+        output_name = f"{path.name}{output_suffix}"
+    return output_dir / output_name

@@ -9,7 +9,12 @@ from typing import Callable, Protocol
 
 import numpy as np
 
-from denoiser.image_io import ImageFormatError, load_image, save_restored_image
+from denoiser.image_io import (
+    ImageFormatError,
+    load_image,
+    prepare_output_pixels,
+    save_restored_image,
+)
 from denoiser.models import DenoiseMode
 from denoiser.output_paths import is_inside_denoised_folder
 
@@ -235,6 +240,7 @@ def failed_batch_file(path: Path, exc: Exception) -> BatchFileResult:
 def restore_single_image(path: Path, mode: DenoiseMode, engine: RestoreEngine) -> SingleRestoreResult:
     image = load_image(path)
     restored_pixels = engine.restore(image.pixels, mode)
+    saved_restored_pixels = prepare_output_pixels(image, restored_pixels)
     output_path = save_restored_image(image, restored_pixels, mode)
 
     return SingleRestoreResult(
@@ -242,5 +248,5 @@ def restore_single_image(path: Path, mode: DenoiseMode, engine: RestoreEngine) -
         output_path=output_path,
         mode=mode,
         raw_pixels=image.pixels,
-        restored_pixels=restored_pixels,
+        restored_pixels=saved_restored_pixels,
     )

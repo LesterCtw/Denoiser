@@ -1,7 +1,8 @@
 """Image input/output boundary for Denoiser.
 
-Implementation will preserve saved intensity scale and avoid applying preview
-normalization to output files.
+Implementation keeps preview normalization separate from saved output. Standard
+image sources preserve their dtype and source range; DM sources export as
+viewer-friendly uint16 TIFF because the native formats are read-only here.
 """
 
 from __future__ import annotations
@@ -165,17 +166,24 @@ def prepare_output_pixels(image: ImageData, restored_pixels: np.ndarray) -> np.n
 
     clipped = np.clip(restored.astype(np.float32, copy=False), image.source_min, image.source_max)
 
-    if image.source_kind is SourceKind.DM:
-        clipped = np.rint(clipped)
-        clipped = np.clip(clipped, 0, np.iinfo(np.uint16).max)
-        return clipped.astype(np.uint16, copy=False)
-
     dtype = image.source_dtype
+    if image.source_kind is SourceKind.DM:
+        return _scale_to_uint16(clipped, image.source_min, image.source_max)
+
     if np.issubdtype(dtype, np.integer):
         clipped = np.rint(clipped)
         info = np.iinfo(dtype)
         clipped = np.clip(clipped, info.min, info.max)
     return clipped.astype(dtype, copy=False)
+
+
+def _scale_to_uint16(pixels: np.ndarray, source_min: float, source_max: float) -> np.ndarray:
+    if source_max > source_min:
+        scaled = (pixels - source_min) / (source_max - source_min)
+    else:
+        scaled = np.zeros_like(pixels, dtype=np.float32)
+    scaled = np.rint(scaled * np.iinfo(np.uint16).max)
+    return np.clip(scaled, 0, np.iinfo(np.uint16).max).astype(np.uint16, copy=False)
 
 
 def _load_pillow_image(path: Path) -> ImageData:

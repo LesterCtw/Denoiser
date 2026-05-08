@@ -26,11 +26,11 @@ def test_restore_single_image_saves_restored_output_with_selected_mode(tmp_path:
     assert result.output_path == tmp_path / "denoised_HRSEM" / "wafer.tif"
     assert result.mode is DenoiseMode.HRSEM
     np.testing.assert_array_equal(result.raw_pixels, np.array([[10, 20], [30, 40]], dtype=np.float32))
-    np.testing.assert_array_equal(result.restored_pixels, result.raw_pixels + 5)
     np.testing.assert_array_equal(
-        tifffile.imread(result.output_path),
+        result.restored_pixels,
         np.array([[15, 25], [35, 40]], dtype=np.uint8),
     )
+    np.testing.assert_array_equal(tifffile.imread(result.output_path), result.restored_pixels)
 
 
 def test_restore_single_image_rejects_multi_page_tiff_before_engine(tmp_path: Path) -> None:
@@ -65,7 +65,7 @@ def test_restore_single_image_rejects_stack_like_tiff_before_engine(tmp_path: Pa
 @pytest.mark.parametrize(
     ("filename", "expected_filename"),
     [
-        ("wafer.jpg", "wafer.tif"),
+        ("wafer.jpg", "wafer.jpg.tif"),
         ("wafer.png", "wafer.png"),
         ("wafer.tiff", "wafer.tiff"),
     ],
