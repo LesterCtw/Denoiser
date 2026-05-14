@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FA 影像品質大躍進｜8D 報告</title>
+  <style>
+    :root {
+      /* TSMC red-only dark report palette: no blue highlight, no colored cards */
+      --primary: #E60012;
+      --primary-hover: #FF3342;
+      --tsmc-red: #E60012;
+      --tsmc-red-soft: #FF3342;
+      --ink: #FFFFFF;
+      --ink-muted: #D8DEE8;
+      --ink-subtle: #A0A8B4;
+      --ink-tertiary: #707987;
+      --canvas: #000000;
+      --surface-1: #0F1011;
+      --surface-2: #151515;
+      --surface-3: #1B1B1B;
+      --hairline: #2A2A2A;
+      --hairline-strong: #3A3A3A;
+      --success: #D8DEE8;
+      --warning: #D8DEE8;
+      --error: #E60012;
+      --font: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--font);
+      overflow: hidden;
+    }
+
+    .deck-shell {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background: var(--canvas);
+    }
+
+    .viewport {
+      width: min(100vw - 56px, calc((100vh - 92px) * 16 / 9));
+      aspect-ratio: 16 / 9;
+      position: relative;
+      filter: drop-shadow(0 18px 55px rgba(0,0,0,.58));
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: top left;
+      background: var(--canvas);
+      color: var(--ink);
+      border: 1px solid var(--hairline-strong);
+      border-radius: 8px;
+      overflow: hidden;
+      display: none;
+      padding: 46px 58px 42px;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: var(--tsmc-red);
+    }
+    .slide.active { display: block; }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 {
+      font-size: 58px;
+      line-height: 1.12;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+    h2 {
+      font-size: 44px;
+      line-height: 1.16;
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+    h3 {
+      font-size: 28px;
+      line-height: 1.2;
+      font-weight: 600;
+      letter-spacing: 0;
+      color: var(--ink);
+    }
+    p, li, td, th { font-size: 22px; line-height: 1.34; }
+    b { color: var(--ink); }
+    .muted { color: var(--ink-muted); }
+    .subtle { color: var(--ink-subtle); }
+
+    .slide-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: start;
+      margin-bottom: 22px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .kicker {
+      font-size: 30px;
+      line-height: 1.18;
+      color: var(--primary-hover);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .badge {
+      border: 1px solid rgba(230, 0, 18, .75);
+      background: rgba(230, 0, 18, .13);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--ink);
+      font-size: 20px;
+      line-height: 1.25;
+      white-space: nowrap;
+      box-shadow: inset 4px 0 0 var(--tsmc-red);
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .main-side { display: grid; grid-template-columns: 1.18fr .82fr; gap: 18px; }
+    .side-main { display: grid; grid-template-columns: .82fr 1.18fr; gap: 18px; }
+
+    .card {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 18px;
+      min-height: 80px;
+    }
+    .card.dense { padding: 14px; }
+    .card.accent { background: var(--surface-1); border-color: var(--hairline); }
+    .card.warn { border-color: var(--warning); }
+    .card.good { border-color: var(--success); }
+
+    ul.clean { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+    ul.clean li { position: relative; padding-left: 20px; color: var(--ink-muted); }
+    ul.clean li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .62em;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .image-slot {
+      min-height: 188px;
+      border-radius: 8px;
+      border: 1px dashed var(--hairline-strong);
+      background: var(--surface-3);
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      text-align: center;
+      color: var(--ink-subtle);
+      font-size: 20px;
+      line-height: 1.35;
+    }
+    .image-slot.sm { min-height: 132px; }
+    .image-slot.md { min-height: 230px; }
+    .image-slot.lg { min-height: 340px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--surface-1);
+    }
+    th, td {
+      padding: 10px 11px;
+      border-bottom: 1px solid var(--hairline);
+      color: var(--ink-muted);
+      text-align: left;
+      vertical-align: top;
+      font-size: 20px;
+      line-height: 1.28;
+    }
+    th {
+      background: var(--surface-2);
+      color: var(--ink-subtle);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .score { color: var(--primary-hover); font-family: var(--mono); font-weight: 700; }
+    .risk-high { color: var(--error); font-family: var(--mono); font-weight: 700; }
+    .risk-med { color: var(--warning); font-family: var(--mono); font-weight: 700; }
+
+    .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .metric {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .metric b { display: block; color: var(--primary-hover); font-size: 52px; line-height: 1; font-weight: 600; margin-bottom: 8px; }
+    .metric span { color: var(--ink-muted); font-size: 20px; line-height: 1.28; }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .tag {
+      border: 1px solid var(--hairline-strong);
+      border-radius: 8px;
+      background: var(--surface-3);
+      color: var(--ink-muted);
+      padding: 6px 9px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .cover-title {
+      display: grid;
+      grid-template-columns: 1.3fr .7fr;
+      gap: 20px;
+      align-items: stretch;
+      margin-bottom: 22px;
+    }
+    .cover-title .summary {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .benefit {
+      background: var(--primary);
+      border-radius: 8px;
+      padding: 18px;
+      min-height: 160px;
+      display: grid;
+      align-content: center;
+    }
+    .benefit small { color: var(--ink-muted); font-size: 22px; }
+    .benefit b { font-size: 76px; line-height: 1; color: var(--ink); font-weight: 600; }
+    .benefit p { font-size: 22px; color: var(--ink); opacity: .92; margin-top: 10px; line-height: 1.28; }
+
+    .diagram {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    svg { display: block; width: 100%; height: auto; }
+    .svg-text { font-family: Inter, "Noto Sans TC", sans-serif; fill: var(--ink-muted); font-size: 18px; }
+    .svg-title { font-family: Inter, "Noto Sans TC", sans-serif; fill: var(--ink); font-size: 20px; font-weight: 600; }
+    .svg-small { font-family: Inter, "Noto Sans TC", sans-serif; fill: var(--ink-subtle); font-size: 15px; }
+    .svg-line { stroke: var(--hairline-strong); stroke-width: 2; fill: none; }
+    .svg-accent { stroke: var(--tsmc-red); stroke-width: 2.4; fill: none; }
+    .diagram marker path { fill: var(--tsmc-red) !important; }
+    .svg-box { fill: var(--surface-2); stroke: var(--hairline-strong); rx: 8; }
+    .svg-box-accent { fill: var(--surface-2); stroke: var(--hairline-strong); rx: 8; }
+
+    .cover-evidence {
+      margin-top: 18px;
+    }
+    .cover-split {
+      display: grid;
+      grid-template-columns: 1.08fr .92fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .hero-image-slot {
+      min-height: 500px;
+      border-radius: 8px;
+      border: 1px dashed var(--hairline-strong);
+      background: var(--surface-3);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      text-align: center;
+      color: var(--ink-subtle);
+      font-size: 27px;
+      line-height: 1.35;
+    }
+    .hero-image-slot.compact { min-height: 390px; }
+    .benefit-calc table { margin-top: 12px; }
+    .benefit-calc th, .benefit-calc td { font-size: 18px; padding: 9px 10px; }
+    .benefit-calc .total-line {
+      margin-top: 12px;
+      border: 1px solid rgba(230, 0, 18, .75);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: rgba(230, 0, 18, .13);
+      color: var(--ink);
+      font-size: 22px;
+      line-height: 1.25;
+    }
+
+    .footer {
+      position: absolute;
+      left: 58px;
+      right: 58px;
+      bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--ink-tertiary);
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .nav {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface-1);
+      border: 1px solid var(--hairline-strong);
+      border-radius: 8px;
+      padding: 8px;
+      z-index: 1000;
+    }
+    .nav button {
+      appearance: none;
+      border: 1px solid var(--hairline-strong);
+      background: var(--surface-2);
+      color: var(--ink-muted);
+      border-radius: 8px;
+      min-width: 44px;
+      height: 36px;
+      padding: 0 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .nav button:hover { background: var(--surface-3); color: var(--ink); border-color: var(--primary); }
+    .nav .count { font-family: var(--mono); color: var(--ink-subtle); padding: 0 8px; font-size: 13px; }
+
+    @media print {
+      body { overflow: visible; background: var(--canvas); }
+      .deck-shell { display: block; padding: 0; }
+      .viewport { width: auto; aspect-ratio: auto; filter: none; }
+      .slide { position: relative; display: block !important; transform: none !important; width: 1920px; height: 1080px; border-radius: 0; page-break-after: always; }
+      .nav { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck-shell">
+    <section class="viewport" id="viewport">
+      <article class="slide active" data-title="封面">
+        <div class="cover-title">
+          <div>
+            <div class="kicker" style="font-size:22px;color:var(--ink-subtle);">持續改善團隊｜8D 報告</div>
+            <h1>FA 影像品質大躍進：AI 影像處理突破機台先天限制</h1>
+            <p class="muted" style="font-size:22px;margin-top:18px;max-width:1180px;">以 8D 方法解決 SEM/STEM 影像 noise、vibration、distortion 造成的 FA 判讀風險與 end-to-end image cycle time 損失。</p>
+          </div>
+          <div class="benefit">
+            <small>預估年化效益</small>
+            <b>&gt;1 億元</b>
+            <p>以 lab 約 15 台 TEM / SEM / FIB 導入估算：避免硬體升級 CAPEX + 縮短收圖與影像後處理 cycle time。</p>
+          </div>
+        </div>
+
+        <div class="metric-row">
+          <div class="metric"><b>&gt;90%</b><span>noise index 降低</span></div>
+          <div class="metric"><b>60–70%</b><span>end-to-end image cycle time 降低</span></div>
+          <div class="metric"><b>15 台</b><span>TEM / SEM / FIB lab 導入規模</span></div>
+          <div class="metric"><b>0 CAPEX</b><span>利用既有設備與 workstation 導入 AI software flow</span></div>
+        </div>
+
+        <div class="cover-evidence cover-split" aria-label="Core improvement evidence and benefit calculation">
+          <div class="card dense">
+            <h3>核心改善展示｜Raw image → AI restored image</h3>
+            <div class="hero-image-slot compact" style="margin-top:12px;">
+              放一張最有衝擊力的 before / after 對照圖<br>
+              建議：只展示最能代表改善的單一案例；局部裁切、直方圖、3D reconstruction 留到後面 D6 展開
+            </div>
+          </div>
+          <div class="card dense benefit-calc">
+            <h3>1 億元效益怎麼來｜15 台機台保守估算</h3>
+            <table>
+              <thead><tr><th>效益來源</th><th>估算方式</th><th>年化效益</th></tr></thead>
+              <tbody>
+                <tr><td>避免硬體改善 CAPEX</td><td>15 台 × 300 萬 / 台</td><td class="score">4,500 萬</td></tr>
+                <tr><td>縮短 image cycle time</td><td>15 台 × 250 天 × 8 hr × 60% × 3,000 元 / hr</td><td class="score">5,400 萬 / 年</td></tr>
+                <tr><td colspan="3">Cycle time = data collection CT + image post-processing CT；估算以收圖機時作主要認列，後處理、repeat scan 與 decision CT 改善作為保守 buffer。</td></tr>
+              </tbody>
+            </table>
+            <div class="total-line"><b>4,500 萬 + 5,400 萬 = 9,900 萬</b><br>再加上後處理、repeat scan 與 decision CT 降低，年化效益可合理估為 <b>&gt;1 億元</b>。</div>
+            <p class="muted" style="font-size:18px;margin-top:10px;">註：300 萬 / 台與 3,000 元 / hr 可依實際財務認列單價替換；此頁先用可被主管直覺檢查的保守公式。</p>
+          </div>
+        </div>
+        <div class="footer"><span>FA AI Image Denoising 8D 報告</span><span>封面</span></div>
+      </article>
+
+      <article class="slide" data-title="D1-1">
+        <div class="slide-header">
+          <div><div class="kicker">D1-1｜主題選定</div><h2>降低影像品質不穩造成的 FA 判讀風險與 cycle time 損失</h2></div>
+          <div class="badge">品質工具：CTQ Tree（Critical to Quality）/ 主題選定準則</div>
+        </div>
+
+        <div class="side-main">
+          <div>
+            <div class="card accent">
+              <h3>選定改善主題</h3>
+              <p class="muted" style="margin-top:10px;font-size:27px;line-height:1.34;">導入 <b>AI image restoration</b> 並標準化為 FA engineer 可使用的 <b>Denoiser GUI workflow</b>。</p>
+              <div class="tag-row">
+                <span class="tag">FA 判讀品質</span><span class="tag">3D reconstruction</span><span class="tag">end-to-end image CT</span><span class="tag">standard workflow</span>
+              </div>
+            </div>
+            <div class="card" style="margin-top:16px;">
+              <h3>主題邊界</h3>
+              <table style="margin-top:12px;">
+                <tbody>
+                  <tr><td><b>改善範圍</b></td><td>SEM/STEM 影像 restoration、single / batch processing、FA / 3D reconstruction 前處理</td></tr>
+                  <tr><td><b>不納入範圍</b></td><td>不更換機台硬體、不修改 acquisition system、不以 AI output 直接取代 raw image final judgement</td></tr>
+                  <tr><td><b>主要交付</b></td><td>Denoiser GUI、noise index 驗證、before / after evidence、SOP 與 Control Plan</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="diagram">
+            <h3 style="margin-bottom:12px;">CTQ Tree：將問題轉成可改善的品質需求</h3>
+            <svg viewBox="0 0 1120 480" role="img" aria-label="CTQ tree for theme selection">
+              <defs><marker id="arrowD1C" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+              <text class="svg-small" x="145" y="32" text-anchor="middle">使用者 / 流程需求</text>
+              <text class="svg-small" x="460" y="32" text-anchor="middle">品質關鍵需求（CTQ）</text>
+              <text class="svg-small" x="870" y="32" text-anchor="middle">改善切入點</text>
+
+              <g>
+                <rect class="svg-box" x="20" y="55" width="250" height="70"/><text class="svg-title" x="145" y="84" text-anchor="middle">FA 判讀要可信</text><text class="svg-small" x="145" y="108" text-anchor="middle">weak morphology 可分辨</text>
+                <line class="svg-accent" x1="275" y1="90" x2="330" y2="90" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box" x="335" y="55" width="250" height="70"/><text class="svg-title" x="460" y="84" text-anchor="middle">特徵可視性</text><text class="svg-small" x="460" y="108" text-anchor="middle">形貌保真度</text>
+                <line class="svg-accent" x1="590" y1="90" x2="645" y2="90" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box-accent" x="650" y="55" width="440" height="70"/><text class="svg-title" x="870" y="84" text-anchor="middle">降低 noise，保留邊緣 / morphology</text><text class="svg-small" x="870" y="108" text-anchor="middle">避免只把影像變平滑</text>
+              </g>
+              <g>
+                <rect class="svg-box" x="20" y="155" width="250" height="70"/><text class="svg-title" x="145" y="184" text-anchor="middle">3D 重建要穩定</text><text class="svg-small" x="145" y="208" text-anchor="middle">連續影像可 alignment</text>
+                <line class="svg-accent" x1="275" y1="190" x2="330" y2="190" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box" x="335" y="155" width="250" height="70"/><text class="svg-title" x="460" y="184" text-anchor="middle">對位可行性</text><text class="svg-small" x="460" y="208" text-anchor="middle">表面連續性</text>
+                <line class="svg-accent" x1="590" y1="190" x2="645" y2="190" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box-accent" x="650" y="155" width="440" height="70"/><text class="svg-title" x="870" y="184" text-anchor="middle">降低 vibration / distortion 影響</text><text class="svg-small" x="870" y="208" text-anchor="middle">提升 reconstruction 可行性</text>
+              </g>
+              <g>
+                <rect class="svg-box" x="20" y="255" width="250" height="70"/><text class="svg-title" x="145" y="284" text-anchor="middle">FA 回應要更快</text><text class="svg-small" x="145" y="308" text-anchor="middle">減少等待與重收圖</text>
+                <line class="svg-accent" x1="275" y1="290" x2="330" y2="290" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box" x="335" y="255" width="250" height="70"/><text class="svg-title" x="460" y="284" text-anchor="middle">Image cycle time</text><text class="svg-small" x="460" y="308" text-anchor="middle">收圖 + 後處理</text>
+                <line class="svg-accent" x1="590" y1="290" x2="645" y2="290" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box-accent" x="650" y="255" width="440" height="70"/><text class="svg-title" x="870" y="284" text-anchor="middle">低 dwell time + AI restoration</text><text class="svg-small" x="870" y="308" text-anchor="middle">降低 repeat scan 需求</text>
+              </g>
+              <g>
+                <rect class="svg-box" x="20" y="355" width="250" height="70"/><text class="svg-title" x="145" y="384" text-anchor="middle">流程要可複製</text><text class="svg-small" x="145" y="408" text-anchor="middle">不依賴個人手動處理</text>
+                <line class="svg-accent" x1="275" y1="390" x2="330" y2="390" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box" x="335" y="355" width="250" height="70"/><text class="svg-title" x="460" y="384" text-anchor="middle">標準化</text><text class="svg-small" x="460" y="408" text-anchor="middle">降低人員差異</text>
+                <line class="svg-accent" x1="590" y1="390" x2="645" y2="390" marker-end="url(#arrowD1C)"/>
+                <rect class="svg-box-accent" x="650" y="355" width="440" height="70"/><text class="svg-title" x="870" y="384" text-anchor="middle">GUI + SOP + version control</text><text class="svg-small" x="870" y="408" text-anchor="middle">形成可部署標準流程</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="grid-4" style="margin-top:18px;">
+          <div class="card"><h3>01｜影響品質</h3><p class="muted" style="margin-top:8px;">noise / vibration 會影響 morphology 判讀，不只是影像美觀問題。</p></div>
+          <div class="card accent"><h3>02｜影響效率</h3><p class="muted" style="margin-top:8px;">repeat scan、高 dwell time 與手動後處理會拉長 end-to-end image CT。</p></div>
+          <div class="card"><h3>03｜改善可行</h3><p class="muted" style="margin-top:8px;">以 software flow 先改善既有機台限制，比逐台硬體升級更快。</p></div>
+          <div class="card"><h3>04｜可標準化</h3><p class="muted" style="margin-top:8px;">可封裝為 GUI、SOP 與 Control Plan，降低人員差異。</p></div>
+        </div>
+        <div class="footer"><span>主題選定先對齊 CTQ，再進入後續 8D 分析</span><span>D1-1</span></div>
+      </article>
+
+      <article class="slide" data-title="D1-2">
+        <div class="slide-header">
+          <div><div class="kicker">D1-2｜團隊組成</div><h2>用跨功能 RACI 確保影像、機台、3D reconstruction 與部署責任清楚</h2></div>
+          <div class="badge">品質工具：RACI / Cross-functional Team</div>
+        </div>
+        <div class="side-main">
+          <div>
+            <div class="card accent">
+              <h3>團隊組成原則</h3>
+              <ul class="clean" style="margin-top:12px;">
+                <li>FA 負責人定義判讀風險與驗證標準</li>
+                <li>機台 / SEM 負責人提供不同 dwell time 與基準 tool time</li>
+                <li>3D reconstruction 負責人驗證 alignment 與 reconstruction 品質</li>
+                <li>AI 工具開發者封裝模型、GUI、批次流程</li>
+                <li>主管 / 審查者確認效益、資源與標準化導入</li>
+              </ul>
+            </div>
+            <div class="image-slot sm" style="margin-top:16px;">放團隊合照 / 專案成員名單 / 組織分工圖</div>
+          </div>
+          <div class="card">
+            <h3>RACI 責任分工</h3>
+            <table style="margin-top:12px;">
+              <thead><tr><th>角色</th><th>主要責任</th><th>RACI</th></tr></thead>
+              <tbody>
+                <tr><td>FA 負責人</td><td>定義 影像品質問題、確認 FA 判讀風險、驗證改善後影像可用性</td><td class="score">R / A</td></tr>
+                <tr><td>機台 / SEM 負責人</td><td>提供 dwell time、noise、vibration 條件影像與基準 tool time</td><td class="score">R / C</td></tr>
+                <tr><td>3D reconstruction 負責人</td><td>驗證 denoising 影像對 alignment 與 reconstruction 品質的影響</td><td class="score">R / C</td></tr>
+                <tr><td>AI 工具開發者</td><td>導入 tk_r_em 模型、封裝 GUI、建立批次 / single image 流程</td><td class="score">R</td></tr>
+                <tr><td>部門主管 / 審查者</td><td>確認改善方向、資源協調、效益與標準化推動</td><td class="score">A / I</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:18px;">
+          <div class="card"><h3>輸入資料責任</h3><p class="muted" style="margin-top:8px;">影像樣本、基準 cycle time、dwell time 條件由機台 / SEM 與 FA 負責人共同確認。</p></div>
+          <div class="card accent"><h3>驗證責任</h3><p class="muted" style="margin-top:8px;">改善後影像需由 FA 審查、noise index 與 3D reconstruction 結果交叉驗證。</p></div>
+          <div class="card"><h3>導入責任</h3><p class="muted" style="margin-top:8px;">GUI、SOP、version control 與 release note 由工具開發者與審查者推動。</p></div>
+        </div>
+        <div class="footer"><span>RACI 讓 8D 行動負責人與驗證負責人明確化</span><span>D1-2</span></div>
+      </article>
+
+      <article class="slide" data-title="D2-1">
+        <div class="slide-header">
+          <div><div class="kicker">D2-1｜描述問題</div><h2>noise、vibration、distortion 讓 FA 判讀與 3D reconstruction 變得不穩定</h2></div>
+          <div class="badge">品質工具：5W2H / Problem Statement</div>
+        </div>
+        <div class="main-side">
+          <div>
+            <div class="grid-3">
+              <div class="card dense"><h3>01｜機台抖動</h3><div class="image-slot">放抖動影像：barrier 是真的異常，還是 vibration artifact？</div></div>
+              <div class="card dense"><h3>02｜noise / distortion</h3><div class="image-slot">放 noisy image + distorted image：morphology 邊界不清楚</div></div>
+              <div class="card dense"><h3>03｜3D reconstruction 失真</h3><div class="image-slot">放品質不佳的 3D reconstruction / alignment failure 證據</div></div>
+            </div>
+            <div class="card accent" style="margin-top:18px;">
+              <h3>Problem Statement</h3>
+              <p class="muted" style="margin-top:10px;font-size:24px;line-height:1.36;">目前 FA 高解析影像受 noise、vibration 與局部 distortion 影響，導致 morphology 特徵判讀困難、3D reconstruction 品質不穩定；為取得可用影像需提高 dwell time、repeat scan 與人工後處理，使 end-to-end image CT 拉長，影響 FA 時效與 CIP 方向判斷。</p>
+            </div>
+          </div>
+          <div class="card">
+            <h3>5W2H 現況掌握</h3>
+            <table style="margin-top:12px;">
+              <tbody>
+                <tr><td><b>What</b></td><td>SEM/STEM image quality 受 noise、vibration、distortion 影響</td></tr>
+                <tr><td><b>Where</b></td><td>FA high-resolution imaging、3D reconstruction 前處理流程</td></tr>
+                <tr><td><b>When</b></td><td>低 dwell time、長時間收圖、對 vibration 敏感條件下特別明顯</td></tr>
+                <tr><td><b>Who</b></td><td>FA engineer、3D reconstruction user、CIP decision owner</td></tr>
+                <tr><td><b>Why</b></td><td>影像品質不足會放大判讀不確定性，導致改善方向錯誤風險</td></tr>
+                <tr><td><b>How</b></td><td>透過拉長 dwell time / repeat scan 補償品質，但犧牲 tool time</td></tr>
+                <tr><td><b>How much</b></td><td>data collection 約 3 天 + 待補後處理時間；改善目標：end-to-end image CT 降低 60–70%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-top:18px;">
+          <div class="card"><h3>判讀風險</h3><p class="muted" style="margin-top:8px;">weak morphology 可能被 noise / vibration artifact 混淆。</p></div>
+          <div class="card accent"><h3>效率損失</h3><p class="muted" style="margin-top:8px;">為補償 image quality，需提高 dwell time 或 repeat scan。</p></div>
+          <div class="card"><h3>重建不穩</h3><p class="muted" style="margin-top:8px;">低品質影像使 alignment 與 surface continuity 不穩。</p></div>
+          <div class="card"><h3>決策延遲</h3><p class="muted" style="margin-top:8px;">FA response 延遲會影響 CIP decision speed。</p></div>
+        </div>
+        <div class="footer"><span>先把問題描述清楚，再進入 baseline 量化</span><span>D2-1</span></div>
+      </article>
+
+      <article class="slide" data-title="D2-2">
+        <div class="slide-header">
+          <div><div class="kicker">D2-2｜掌握現狀與目標設定</div><h2>先量化改善前 baseline，再用 SMART 定義本次改善目標</h2></div>
+          <div class="badge">品質工具：Baseline Metrics / SMART Goal Setting / Measurement Plan</div>
+        </div>
+        <div class="card accent">
+          <h3>Baseline Metrics｜改善前現況量化</h3>
+          <table style="margin-top:12px;">
+            <thead><tr><th>Metric</th><th>Baseline</th><th>Measure Method</th><th>Impact</th></tr></thead>
+            <tbody>
+              <tr><td>End-to-end image CT</td><td class="score">~3 天 / case + 待填 __ min / dataset</td><td>data collection CT + image post-processing CT</td><td>FA response、3D reconstruction 與 CIP decision delay</td></tr>
+              <tr><td>Tool time</td><td class="score">待填：__ hr / stack</td><td>acquisition log / dwell time setting / scan count</td><td>tool capacity loss</td></tr>
+              <tr><td>Noise index</td><td class="score">Raw = 1.00 normalized</td><td>wavelet high-pass MAD，以 raw image 正規化</td><td>weak feature visibility 下降</td></tr>
+              <tr><td>Reconstruction readiness</td><td class="score">待填：pass / fail rate</td><td>alignment feasibility / morphology review</td><td>3D reconstruction success rate</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="grid-3" style="margin-top:18px;">
+          <div class="card">
+            <h3>量測原則</h3>
+            <ul class="clean" style="margin-top:10px;">
+              <li>以 representative case 建立 baseline，不混用不同條件資料</li>
+              <li>Raw image 作為 normalized noise index = 1.00</li>
+              <li>cycle time 需同時納入收圖、篩圖、alignment 前處理與等待時間</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>SMART 目標設定</h3>
+            <table style="margin-top:10px;">
+              <tbody>
+                <tr><td><b>S</b></td><td>降低 SEM/STEM noise / artifact，同時保留 morphology 與 edge feature。</td></tr>
+                <tr><td><b>M</b></td><td>noise index &gt;90%↓；end-to-end image CT 60–70%↓。</td></tr>
+                <tr><td><b>A</b></td><td>使用既有 TEM / SEM / FIB 與 workstation，以 software flow 導入。</td></tr>
+                <tr><td><b>R</b></td><td>直接對應 FA 判讀品質、3D reconstruction 與 CIP decision speed。</td></tr>
+                <tr><td><b>T</b></td><td>D6 前完成 before / after validation，D7 納入 SOP / Control Plan。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card accent">
+            <h3>D6 對應驗證</h3>
+            <ul class="clean" style="margin-top:10px;">
+              <li>Noise index reduction：對應 Raw = 1.00 baseline</li>
+              <li>End-to-end CT reduction：對應收圖 + 後處理 baseline</li>
+              <li>Tool time reduction：對應 acquisition log / dwell time baseline</li>
+            </ul>
+          </div>
+        </div>
+        <div class="diagram" style="margin-top:16px;">
+          <svg viewBox="0 0 1320 120" role="img" aria-label="baseline to validation loop">
+            <defs><marker id="arrowD2B" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+            <rect class="svg-box" x="20" y="25" width="230" height="70"/><text class="svg-title" x="135" y="55" text-anchor="middle">Baseline</text><text class="svg-small" x="135" y="78" text-anchor="middle">改善前量測</text>
+            <line class="svg-accent" x1="255" y1="60" x2="330" y2="60" marker-end="url(#arrowD2B)"/>
+            <rect class="svg-box" x="335" y="25" width="230" height="70"/><text class="svg-title" x="450" y="55" text-anchor="middle">Target</text><text class="svg-small" x="450" y="78" text-anchor="middle">改善目標設定</text>
+            <line class="svg-accent" x1="570" y1="60" x2="645" y2="60" marker-end="url(#arrowD2B)"/>
+            <rect class="svg-box-accent" x="650" y="25" width="230" height="70"/><text class="svg-title" x="765" y="55" text-anchor="middle">Action</text><text class="svg-small" x="765" y="78" text-anchor="middle">AI restoration</text>
+            <line class="svg-accent" x1="885" y1="60" x2="960" y2="60" marker-end="url(#arrowD2B)"/>
+            <rect class="svg-box" x="965" y="25" width="335" height="70"/><text class="svg-title" x="1132" y="55" text-anchor="middle">Effect Confirmation</text><text class="svg-small" x="1132" y="78" text-anchor="middle">D6 before / after validation</text>
+          </svg>
+        </div>
+        <div class="footer"><span>SMART 是目標設定；baseline 是改善前量測，兩者需與 D6 效果確認形成閉環</span><span>D2-2</span></div>
+      </article>
+
+      <article class="slide" data-title="D3">
+        <div class="slide-header">
+          <div><div class="kicker">D3｜執行、驗證暫時防堵措施</div><h2>永久對策完成前，先用傳統 filter 與現場改善降低影像品質風險</h2></div>
+          <div class="badge">品質工具：Containment Plan / Risk Matrix / FMEA-lite</div>
+        </div>
+        <div class="grid-2">
+          <div class="card accent">
+            <h3>暫時防堵措施｜先用既有方法降低風險</h3>
+            <ul class="clean" style="margin-top:12px;">
+              <li><b>傳統 filter：</b>Gaussian / Median / NLM 先行降噪，作為暫時影像改善方法</li>
+              <li><b>現場操作：</b>鎖緊 holder、確認 sample mounting、必要時鍍 Pt 降低 charging / artifact</li>
+              <li><b>環境控制：</b>收圖期間降低人員走動與講話聲量，減少 vibration / acoustic disturbance</li>
+              <li><b>判讀保護：</b>filter 後影像只作輔助判讀，critical morphology 仍需 raw image / repeat scan 確認</li>
+              <li><b>QC gate：</b>進入 3D reconstruction 前先檢查 noise、edge blur 與 alignment feasibility</li>
+            </ul>
+            <div class="diagram" style="margin-top:16px;">
+              <svg viewBox="0 0 820 180" role="img" aria-label="temporary containment flow">
+                <defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+                <rect class="svg-box" x="10" y="35" width="145" height="90"/><text class="svg-title" x="82" y="72" text-anchor="middle">raw image</text><text class="svg-small" x="82" y="98" text-anchor="middle">noise / vibration</text>
+                <line class="svg-accent" x1="160" y1="80" x2="215" y2="80" marker-end="url(#arrow)"/>
+                <rect class="svg-box-accent" x="220" y="35" width="160" height="90"/><text class="svg-title" x="300" y="72" text-anchor="middle">Containment</text><text class="svg-small" x="300" y="98" text-anchor="middle">filter + holder / Pt</text>
+                <line class="svg-accent" x1="385" y1="80" x2="440" y2="80" marker-end="url(#arrow)"/>
+                <rect class="svg-box" x="445" y="20" width="160" height="60"/><text class="svg-title" x="525" y="56" text-anchor="middle">QC pass → FA</text>
+                <rect class="svg-box" x="445" y="105" width="160" height="60"/><text class="svg-title" x="525" y="141" text-anchor="middle">NG → repeat scan</text>
+                <line class="svg-accent" x1="610" y1="50" x2="675" y2="50" marker-end="url(#arrow)"/>
+                <line class="svg-accent" x1="610" y1="135" x2="675" y2="135" marker-end="url(#arrow)"/>
+                <rect class="svg-box-accent" x="680" y="55" width="125" height="70"/><text class="svg-title" x="742" y="86" text-anchor="middle">Decision</text><text class="svg-small" x="742" y="110" text-anchor="middle">risk reduced</text>
+              </svg>
+            </div>
+          </div>
+          <div class="card">
+            <h3>風險評估與防堵驗證</h3>
+            <table style="margin-top:12px;">
+              <thead><tr><th>風險項目</th><th>S</th><th>O</th><th>D</th><th>RPN</th><th>暫時防堵</th></tr></thead>
+              <tbody>
+                <tr><td>noise 導致 morphology 誤判</td><td>8</td><td>6</td><td>5</td><td class="risk-high">240</td><td>Gaussian / Median / NLM + raw image 比對</td></tr>
+                <tr><td>vibration 導致阻障層假缺陷</td><td>9</td><td>5</td><td>5</td><td class="risk-high">225</td><td>鎖緊 holder、降低走動 / 講話、repeat scan</td></tr>
+                <tr><td>charging / contamination 造成 artifact</td><td>7</td><td>5</td><td>6</td><td class="risk-high">210</td><td>sample mounting 確認 / 必要時鍍 Pt</td></tr>
+              </tbody>
+            </table>
+            <div class="card dense" style="margin-top:16px;background:var(--surface-2);">
+              <h3>驗證方式</h3>
+              <p class="muted" style="margin-top:8px;">比較 raw、Gaussian、Median、NLM 與現場改善後影像的 noise index、edge blur、morphology 判讀一致性。若 filter 造成特徵模糊或仍低於 QC gate，需回到 raw image、repeat scan 或重新固定 sample，不直接進入 final conclusion。</p>
+            </div>
+          </div>
+        </div>
+        <div class="grid-3" style="margin-top:18px;">
+          <div class="card"><h3>Filter containment</h3><p class="muted" style="margin-top:8px;">Gaussian / Median / NLM 可快速降低 noise，但需檢查 edge blur 與 morphology distortion。</p></div>
+          <div class="card accent"><h3>現場 containment</h3><p class="muted" style="margin-top:8px;">鎖 holder、鍍 Pt、降低環境擾動，先把 vibration / charging 風險壓低。</p></div>
+          <div class="card"><h3>退出條件</h3><p class="muted" style="margin-top:8px;">永久對策完成後，以 AI restoration + image QC gate 取代臨時 filter 與人工經驗判斷。</p></div>
+        </div>
+        <div class="footer"><span>暫時防堵保護判斷品質</span><span>D3</span></div>
+      </article>
+
+      <article class="slide" data-title="D4">
+        <div class="slide-header">
+          <div><div class="kicker">D4｜定義及驗證真因</div><h2>真因不是單一機台異常，而是缺少可標準化的 image restoration 方法</h2></div>
+          <div class="badge">品質工具：Fishbone / 5 Why / Root Cause Validation</div>
+        </div>
+        <div class="main-side">
+          <div class="diagram">
+            <h3 style="margin-bottom:10px;">Fishbone 真因分析</h3>
+            <svg viewBox="0 0 1030 520" role="img" aria-label="fishbone root cause diagram">
+              <defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+              <line class="svg-accent" x1="90" y1="260" x2="910" y2="260" marker-end="url(#arrow2)"/>
+              <rect class="svg-box-accent" x="760" y="210" width="240" height="100"/><text class="svg-title" x="880" y="248" text-anchor="middle">影像品質不足</text><text class="svg-small" x="880" y="278" text-anchor="middle">誤判風險 + cycle time 損失</text>
+              <g>
+                <line class="svg-line" x1="230" y1="260" x2="120" y2="110"/><rect class="svg-box" x="40" y="45" width="205" height="72"/><text class="svg-title" x="142" y="76" text-anchor="middle">機台</text><text class="svg-small" x="142" y="101" text-anchor="middle">vibration / 漂移 / detector</text>
+                <line class="svg-line" x1="410" y1="260" x2="310" y2="110"/><rect class="svg-box" x="250" y="45" width="230" height="72"/><text class="svg-title" x="365" y="76" text-anchor="middle">方法</text><text class="svg-small" x="365" y="101" text-anchor="middle">dwell time / 濾波模糊</text>
+                <line class="svg-line" x1="590" y1="260" x2="520" y2="110"/><rect class="svg-box" x="500" y="45" width="240" height="72"/><text class="svg-title" x="620" y="76" text-anchor="middle">量測</text><text class="svg-small" x="620" y="101" text-anchor="middle">缺少 noise index / QC gate</text>
+                <line class="svg-line" x1="230" y1="260" x2="120" y2="410"/><rect class="svg-box" x="40" y="405" width="205" height="72"/><text class="svg-title" x="142" y="436" text-anchor="middle">人員</text><text class="svg-small" x="142" y="461" text-anchor="middle">仰賴經驗判斷</text>
+                <line class="svg-line" x1="410" y1="260" x2="310" y2="410"/><rect class="svg-box" x="250" y="405" width="230" height="72"/><text class="svg-title" x="365" y="436" text-anchor="middle">材料</text><text class="svg-small" x="365" y="461" text-anchor="middle">distortion / 電荷累積</text>
+                <line class="svg-line" x1="590" y1="260" x2="520" y2="410"/><rect class="svg-box" x="500" y="405" width="240" height="72"/><text class="svg-title" x="620" y="436" text-anchor="middle">環境</text><text class="svg-small" x="620" y="461" text-anchor="middle">地板 vibration / 環境變異</text>
+              </g>
+            </svg>
+          </div>
+          <div class="card accent">
+            <h3>5 Why 驗證真因</h3>
+            <table style="margin-top:12px;">
+              <tbody>
+                <tr><td><b>1 原因</b></td><td>影像有 noise、vibration artifact、局部 distortion。</td></tr>
+                <tr><td><b>2 原因</b></td><td>低 dwell timeSNR 不足，長時間收圖又容易受漂移 / vibration 影響。</td></tr>
+                <tr><td><b>3 原因</b></td><td>既有流程只能拉長 dwell time 或 repeat scan 補償。</td></tr>
+                <tr><td><b>4 原因</b></td><td>傳統濾波會模糊邊緣 / morphology，不適合 FA 判讀。</td></tr>
+                <tr><td><b>5 原因</b></td><td>缺少可保留 morphology、可量化、可 batch processing、可 GUI 標準化部署的 AI image restoration 流程。</td></tr>
+              </tbody>
+            </table>
+            <p class="muted" style="margin-top:14px;"><b>Validated Root Cause：</b>既有 FA 影像流程缺少一套可在既有機台條件下，同時降低 noise、保留 morphology、支援 batch processing 並標準化部署的 image restoration 方法。</p>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-top:18px;">
+          <div class="card"><h3>機台</h3><p class="muted" style="margin-top:8px;">vibration / 漂移是現象來源之一，但逐台硬體改善成本高、導入慢。</p></div>
+          <div class="card"><h3>方法</h3><p class="muted" style="margin-top:8px;">提高 dwell time 可改善 SNR，但直接犧牲 tool time 與收圖效率。</p></div>
+          <div class="card accent"><h3>真因</h3><p class="muted" style="margin-top:8px;">缺少可保留 morphology、可量化、可 batch processing 的標準化 restore 流程。</p></div>
+          <div class="card"><h3>驗證</h3><p class="muted" style="margin-top:8px;">用 noise index、改善前後影像、3D reconstruction 結果交叉確認。</p></div>
+        </div>
+        <div class="footer"><span>真因必須自然導向選定的永久對策</span><span>D4</span></div>
+      </article>
+
+      <article class="slide" data-title="D5">
+        <div class="slide-header">
+          <div><div class="kicker">D5｜列出、選定、驗證永久對策</div><h2>用決策矩陣選出「tk_r_em AI denoising + Denoiser GUI」作為永久對策</h2></div>
+          <div class="badge">品質工具：Decision Matrix / Criteria Scoring</div>
+        </div>
+        <div class="main-side">
+          <div class="card">
+            <h3>候選對策比較</h3>
+            <table style="margin-top:12px;">
+              <thead><tr><th>對策</th><th>denoising</th><th>保真</th><th>成本</th><th>速度</th><th>自動化</th><th>結論</th></tr></thead>
+              <tbody>
+                <tr><td>防震台 / 硬體升級</td><td>高</td><td>高</td><td>低</td><td>低</td><td>中</td><td>成本高，導入慢</td></tr>
+                <tr><td>提高 dwell time / repeat scan</td><td>中</td><td>高</td><td>中</td><td>高</td><td>低</td><td>品質提升但 CT 惡化</td></tr>
+                <tr><td>傳統濾波</td><td>中</td><td>低</td><td>高</td><td>高</td><td>中</td><td>容易模糊 morphology</td></tr>
+                <tr><td>監督式 AI 訓練</td><td>高</td><td>高</td><td>低</td><td>低</td><td>高</td><td>訓練資料需求過高</td></tr>
+                <tr><td><b>tk_r_em + Denoiser GUI</b></td><td class="score">高</td><td class="score">高</td><td class="score">高</td><td class="score">高</td><td class="score">高</td><td><b>最佳方案</b></td></tr>
+              </tbody>
+            </table>
+            <p class="subtle" style="font-size:13px;margin-top:10px;">註：成本欄位高分代表導入成本低 / CAPEX avoidance 效益高。</p>
+          </div>
+          <div>
+            <div class="diagram">
+              <h3 style="margin-bottom:10px;">永久對策概念圖</h3>
+              <svg viewBox="0 0 720 250" role="img" aria-label="permanent solution diagram">
+                <defs><marker id="arrow3" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+                <rect class="svg-box" x="20" y="72" width="140" height="82"/><text class="svg-title" x="90" y="107" text-anchor="middle">raw image</text><text class="svg-small" x="90" y="132" text-anchor="middle">SEM / STEM</text>
+                <line class="svg-accent" x1="165" y1="113" x2="220" y2="113" marker-end="url(#arrow3)"/>
+                <rect class="svg-box-accent" x="225" y="48" width="190" height="130"/><text class="svg-title" x="320" y="91" text-anchor="middle">Denoiser GUI</text><text class="svg-small" x="320" y="118" text-anchor="middle">tk_r_em ONNX 模型</text><text class="svg-small" x="320" y="143" text-anchor="middle">單張 / 批次</text>
+                <line class="svg-accent" x1="420" y1="113" x2="475" y2="113" marker-end="url(#arrow3)"/>
+                <rect class="svg-box" x="480" y="35" width="210" height="65"/><text class="svg-title" x="585" y="74" text-anchor="middle">FA 判斷</text>
+                <rect class="svg-box" x="480" y="135" width="210" height="65"/><text class="svg-title" x="585" y="174" text-anchor="middle">3D reconstruction</text>
+              </svg>
+            </div>
+            <div class="card accent" style="margin-top:14px;">
+              <h3>選定永久對策</h3>
+              <p class="muted" style="margin-top:8px;">導入 <b>tk_r_em AI denoising 模型</b>，並封裝為 FA 工程師可直接使用的 <b>Denoiser GUI 工具</b>，支援 single image / batch processing，將複雜演算法標準化為低門檻工作流程。</p>
+              <div class="tag-row"><span class="tag">離線 CPU</span><span class="tag">單張 / 批次</span><span class="tag">SEM / STEM</span><span class="tag">免寫程式 GUI</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-top:18px;">
+          <div class="card"><h3>選定準則</h3><p class="muted" style="margin-top:8px;">同時評估 denoising、形貌保真度、導入成本、速度與自動化潛力。</p></div>
+          <div class="card accent"><h3>選定對策</h3><p class="muted" style="margin-top:8px;">tk_r_em 模型 + Denoiser GUI，兼顧 image quality 與工程部署性。</p></div>
+          <div class="card"><h3>驗證計畫</h3><p class="muted" style="margin-top:8px;">以小波 MAD、visual review、3D reconstruction 輸出進行交叉驗證。</p></div>
+          <div class="card"><h3>效益邏輯</h3><p class="muted" style="margin-top:8px;">用 software flow 取代大量硬體升級與高 dwell time 補償，形成 CAPEX 避免效益。</p></div>
+        </div>
+        <div class="footer"><span>AI 是依準則選出，不是偏好選擇</span><span>D5</span></div>
+      </article>
+
+      <article class="slide" data-title="D6">
+        <div class="slide-header">
+          <div><div class="kicker">D6｜執行永久對策及效果確認</div><h2>AI denoising 導入後，image quality 與 end-to-end cycle time 同步改善</h2></div>
+          <div class="badge">品質工具：Before / After / SMART Effect Check / Noise Index</div>
+        </div>
+        <div class="diagram" style="margin-bottom:16px;">
+          <svg viewBox="0 0 1320 150" role="img" aria-label="implementation workflow">
+            <defs><marker id="arrow4" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+            <rect class="svg-box" x="20" y="34" width="205" height="82"/><text class="svg-title" x="122" y="69" text-anchor="middle">原始 SEM/STEM</text><text class="svg-small" x="122" y="94" text-anchor="middle">noise / distortion</text>
+            <line class="svg-accent" x1="230" y1="75" x2="285" y2="75" marker-end="url(#arrow4)"/>
+            <rect class="svg-box-accent" x="290" y="34" width="205" height="82"/><text class="svg-title" x="392" y="69" text-anchor="middle">Denoiser GUI</text><text class="svg-small" x="392" y="94" text-anchor="middle">模式 + 批次</text>
+            <line class="svg-accent" x1="500" y1="75" x2="555" y2="75" marker-end="url(#arrow4)"/>
+            <rect class="svg-box" x="560" y="34" width="205" height="82"/><text class="svg-title" x="662" y="69" text-anchor="middle">AI restore</text><text class="svg-small" x="662" y="94" text-anchor="middle">noise 降低 / 特徵保留</text>
+            <line class="svg-accent" x1="770" y1="75" x2="825" y2="75" marker-end="url(#arrow4)"/>
+            <rect class="svg-box" x="830" y="34" width="205" height="82"/><text class="svg-title" x="932" y="69" text-anchor="middle">image QC check</text><text class="svg-small" x="932" y="94" text-anchor="middle">MAD + 目視檢查</text>
+            <line class="svg-accent" x1="1040" y1="75" x2="1095" y2="75" marker-end="url(#arrow4)"/>
+            <rect class="svg-box-accent" x="1100" y="34" width="200" height="82"/><text class="svg-title" x="1200" y="69" text-anchor="middle">FA / 3D 流程</text><text class="svg-small" x="1200" y="94" text-anchor="middle">判斷 + reconstruction</text>
+          </svg>
+        </div>
+        <div class="grid-3">
+          <div class="card dense"><h3>image quality 改善</h3><div class="image-slot md">放原始 vs denoising：noise / vibration / 模糊改善前後對照</div></div>
+          <div class="card dense"><h3>Noise Index 驗證</h3><div class="image-slot md">放小波高通 MAD 直方圖：不同 dwell time denoising 前後</div></div>
+          <div class="card dense"><h3>3D reconstruction 改善</h3><div class="image-slot md">放 3D reconstruction before / after：alignment 穩定性與表面品質改善</div></div>
+        </div>
+        <div class="metric-row" style="margin-top:14px;">
+          <div class="metric"><b>&gt;90%</b><span>noise index 降低</span></div>
+          <div class="metric"><b>60–70%</b><span>end-to-end image cycle time 降低</span></div>
+          <div class="metric"><b>SMART</b><span>用 D2-2 相同指標確認目標達成</span></div>
+          <div class="metric"><b>0 CAPEX</b><span>利用既有設備與 workstation 導入</span></div>
+        </div>
+        <div class="footer"><span>展示數據，不只展示漂亮影像</span><span>D6</span></div>
+      </article>
+
+      <article class="slide" data-title="D7">
+        <div class="slide-header">
+          <div><div class="kicker">D7｜預防再發生及標準化</div><h2>將 AI 影像處理 GUI 化、SOP 化，避免流程因人而異</h2></div>
+          <div class="badge">品質工具：Control Plan / SOP / Standardization</div>
+        </div>
+        <div class="main-side">
+          <div class="card accent">
+            <h3>標準化重點</h3>
+            <ul class="clean" style="margin-top:12px;">
+              <li><b>GUI 化：</b>將 AI 模型、影像輸入輸出、單張 / batch processing 封裝為桌面工具</li>
+              <li><b>SOP 化：</b>select image → select mode → image restoration → QC check → 輸出</li>
+              <li><b>輸出標準化：</b>自動產生 denoising 輸出資料夾，降低命名與覆蓋原始資料風險</li>
+              <li><b>低門檻導入：</b>FA 工程師不需程式設計，30 秒可上手</li>
+              <li><b>離線部署：</b>可於 FA workstation 離線執行，符合資料安全限制</li>
+            </ul>
+            <div class="image-slot sm" style="margin-top:14px;">放 Denoiser GUI 截圖 + SOP 一頁式流程</div>
+          </div>
+          <div class="card">
+            <h3>Control Plan</h3>
+            <table style="margin-top:12px;">
+              <thead><tr><th>管制項目</th><th>方法</th><th>頻率</th><th>負責人</th><th>反應計畫</th></tr></thead>
+              <tbody>
+                <tr><td>input image format</td><td>GUI 檢查</td><td>每次使用</td><td>FA 工程師</td><td>不支援格式即跳出錯誤</td></tr>
+                <tr><td>denoising 模式</td><td>SOP 選擇指引</td><td>每次使用</td><td>FA 工程師</td><td>依 SEM/STEM 類型 select mode</td></tr>
+                <tr><td>output path</td><td>auto naming rule</td><td>每次使用</td><td>工具</td><td>避免覆蓋原始資料</td></tr>
+                <tr><td>image quality</td><td>noise index + 目視檢查</td><td>每個案例</td><td>FA 工程師</td><td>不合格則 repeat scan / 高 dwell time</td></tr>
+                <tr><td>工具版本</td><td>release version control</td><td>每次更新</td><td>負責人</td><td>保留版本與 change log</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="diagram" style="margin-top:16px;">
+          <svg viewBox="0 0 1320 120" role="img" aria-label="standardized SOP flow">
+            <defs><marker id="arrow5" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#E60012"/></marker></defs>
+            <rect class="svg-box" x="20" y="25" width="190" height="70"/><text class="svg-title" x="115" y="66" text-anchor="middle">select image</text>
+            <line class="svg-accent" x1="215" y1="60" x2="280" y2="60" marker-end="url(#arrow5)"/>
+            <rect class="svg-box" x="285" y="25" width="190" height="70"/><text class="svg-title" x="380" y="66" text-anchor="middle">select mode</text>
+            <line class="svg-accent" x1="480" y1="60" x2="545" y2="60" marker-end="url(#arrow5)"/>
+            <rect class="svg-box-accent" x="550" y="25" width="190" height="70"/><text class="svg-title" x="645" y="66" text-anchor="middle">restore</text>
+            <line class="svg-accent" x1="745" y1="60" x2="810" y2="60" marker-end="url(#arrow5)"/>
+            <rect class="svg-box" x="815" y="25" width="190" height="70"/><text class="svg-title" x="910" y="66" text-anchor="middle">QC check</text>
+            <line class="svg-accent" x1="1010" y1="60" x2="1075" y2="60" marker-end="url(#arrow5)"/>
+            <rect class="svg-box-accent" x="1080" y="25" width="220" height="70"/><text class="svg-title" x="1190" y="66" text-anchor="middle">standard output</text>
+          </svg>
+        </div>
+        <div class="footer"><span>標準化讓原型成為可部署的 FA 流程</span><span>D7</span></div>
+      </article>
+
+      <article class="slide" data-title="D8">
+        <div class="slide-header">
+          <div><div class="kicker">D8｜恭賀團隊及未來方向</div><h2>完成核心 denoising 能力，下一步擴展為 FA 影像自動化平台</h2></div>
+          <div class="badge">品質工具：Lessons Learned / Roadmap / Closure</div>
+        </div>
+        <div class="grid-2">
+          <div class="card accent">
+            <h3>成果總結</h3>
+            <ul class="clean" style="margin-top:12px;">
+              <li>AI denoising 將 FA 影像 noise 降低 &gt;90%，提升 weak feature visibility</li>
+              <li>透過低 dwell time + AI restore，end-to-end image CT 降低 60–70%</li>
+              <li>Cycle time 同時整併 data collection、影像後處理、repeat scan 與 decision delay</li>
+              <li>Denoiser GUI 讓演算法變成可部署、可標準化、可交接的工程工具</li>
+              <li>預估 CAPEX avoidance + throughput improvement 效益 &gt;1 億元</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>團隊貢獻與恭賀</h3>
+            <p class="muted" style="margin-top:10px;">感謝 FA、機台、3D reconstruction 與審查者的跨功能合作，將原本依賴硬體條件與個人經驗的 影像品質問題，轉化為可量測、可驗證、可標準化導入的 AI 流程。</p>
+            <div class="image-slot sm" style="margin-top:14px;">放團隊成員 / 專案里程碑 / 改善前後主視覺影像</div>
+          </div>
+        </div>
+        <div class="grid-4" style="margin-top:16px;">
+          <div class="card"><h3>階段 01｜已完成</h3><p class="muted" style="margin-top:8px;">完成 AI denoisingGUI、單張 / 批次流程、SOP 與效果驗證。</p></div>
+          <div class="card"><h3>階段 02｜下一步</h3><p class="muted" style="margin-top:8px;">整合對比 / 特徵強化，強化微弱訊號與細微 morphology。</p></div>
+          <div class="card"><h3>階段 03｜下一步</h3><p class="muted" style="margin-top:8px;">整合 advanced alignment / distortion 校正，提高 reconstruction 穩定性。</p></div>
+          <div class="card"><h3>階段 04｜願景</h3><p class="muted" style="margin-top:8px;">串接批次分析、特徵擷取、報告產生，形成端到端 FA 影像流程。</p></div>
+        </div>
+        <div class="footer"><span>從 denoising 工具走向 FA 自動化平台</span><span>D8</span></div>
+      </article>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="Slide navigation">
+    <button type="button" id="prev" aria-label="Previous slide">←</button>
+    <span class="count" id="count">1 / 11</span>
+    <button type="button" id="next" aria-label="Next slide">→</button>
+  </nav>
+
+  <script>
+    const viewport = document.getElementById('viewport');
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const count = document.getElementById('count');
+    const prev = document.getElementById('prev');
+    const next = document.getElementById('next');
+    let current = Number(localStorage.getItem('fa-8d-current-slide-v3') || 0);
+    if (!Number.isFinite(current) || current < 0 || current >= slides.length) current = 0;
+
+    function scaleSlides() {
+      const rect = viewport.getBoundingClientRect();
+      const scale = rect.width / 1920;
+      slides.forEach(slide => { slide.style.transform = `scale(${scale})`; });
+    }
+    function show(index) {
+      current = Math.max(0, Math.min(slides.length - 1, index));
+      slides.forEach((slide, i) => slide.classList.toggle('active', i === current));
+      count.textContent = `${current + 1} / ${slides.length}`;
+      localStorage.setItem('fa-8d-current-slide-v3', String(current));
+    }
+    prev.addEventListener('click', () => show(current - 1));
+    next.addEventListener('click', () => show(current + 1));
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') show(current + 1);
+      if (event.key === 'ArrowLeft' || event.key === 'PageUp') show(current - 1);
+      if (event.key === 'Home') show(0);
+      if (event.key === 'End') show(slides.length - 1);
+    });
+    window.addEventListener('resize', scaleSlides);
+    scaleSlides();
+    show(current);
+  </script>
+</body>
+</html>
