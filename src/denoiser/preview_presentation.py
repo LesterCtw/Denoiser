@@ -10,6 +10,8 @@ from io import BytesIO
 import numpy as np
 from PIL import Image
 
+PreviewDisplayLimits = tuple[float, float]
+
 
 @dataclass(frozen=True)
 class RawPreview:
@@ -36,30 +38,70 @@ def comparison_preview(
     raw_pixels: np.ndarray,
     restored_pixels: np.ndarray,
 ) -> ComparisonPreview:
+    display_limits = _shared_preview_display_limits(raw_pixels, restored_pixels)
     return ComparisonPreview(
-        raw_data_url=raw_preview_data_url(raw_pixels),
-        restored_data_url=raw_preview_data_url(restored_pixels),
+        raw_data_url=raw_preview_data_url(raw_pixels, display_limits=display_limits),
+        restored_data_url=raw_preview_data_url(restored_pixels, display_limits=display_limits),
     )
 
 
-def raw_preview_data_url(preview_pixels: np.ndarray) -> str:
+def raw_preview_data_url(
+    preview_pixels: np.ndarray,
+    *,
+    display_limits: PreviewDisplayLimits | None = None,
+) -> str:
     pixels = np.asarray(preview_pixels)
     if pixels.ndim != 2:
         raise ValueError(f"Raw preview expects 2D pixels, got shape {pixels.shape}.")
 
     display = pixels.astype(np.float32, copy=False)
-    minimum = float(np.nanmin(display))
-    maximum = float(np.nanmax(display))
+    if display_limits is None:
+        display_limits = _preview_display_limits(display)
+    minimum, maximum = display_limits
     if maximum > minimum:
+        display = np.nan_to_num(
+            display,
+            nan=minimum,
+            neginf=minimum,
+            posinf=maximum,
+        )
         display = (display - minimum) / (maximum - minimum)
     else:
-        display = np.zeros_like(display, dtype=np.float32)
+        display = np.full_like(display, 0.5, dtype=np.float32)
     display_uint8 = np.clip(np.rint(display * 255), 0, 255).astype(np.uint8)
 
     buffer = BytesIO()
     Image.fromarray(display_uint8).save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
     return f"data:image/png;base64,{encoded}"
+
+
+def _shared_preview_display_limits(
+    raw_pixels: np.ndarray,
+    restored_pixels: np.ndarray,
+) -> PreviewDisplayLimits:
+    raw = np.asarray(raw_pixels, dtype=np.float32)
+    restored = np.asarray(restored_pixels, dtype=np.float32)
+    return _preview_display_limits(np.concatenate((raw.ravel(), restored.ravel())))
+
+
+def _preview_display_limits(pixels: np.ndarray) -> PreviewDisplayLimits:
+    finite = np.asarray(pixels, dtype=np.float32)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return (0.0, 1.0)
+
+    minimum = float(np.min(finite))
+    maximum = float(np.max(finite))
+    if maximum <= minimum:
+        return (minimum, minimum)
+
+    if finite.size >= 256:
+        low, high = np.percentile(finite, [0.5, 99.5])
+        if float(high) > float(low):
+            return (float(low), float(high))
+
+    return (minimum, maximum)
 
 
 def raw_preview_html(preview: RawPreview) -> str:

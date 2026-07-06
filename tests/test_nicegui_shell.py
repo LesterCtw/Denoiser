@@ -90,7 +90,14 @@ def test_nicegui_shell_snapshot_has_core_inspector_controls() -> None:
     assert snapshot.regions == ("left control rail", "right work area")
     assert snapshot.workflows == ("Single", "Batch")
     assert snapshot.selected_workflow == "Single"
-    assert snapshot.denoising_modes == ("HRSTEM", "LRSTEM", "HRSEM", "LRSEM")
+    assert snapshot.denoising_modes == (
+        "HRSTEM",
+        "LRSTEM",
+        "HRSEM",
+        "LRSEM",
+        "HRTEM",
+        "LRTEM",
+    )
     assert snapshot.selected_denoising_mode == "HRSTEM"
     assert snapshot.primary_action == "Restore"
     assert snapshot.status == "Ready"
@@ -123,6 +130,8 @@ def test_nicegui_shell_mode_selection_updates_selected_state() -> None:
         "LRSTEM": "idle",
         "HRSEM": "idle",
         "LRSEM": "selected",
+        "HRTEM": "idle",
+        "LRTEM": "idle",
     }
 
 
@@ -192,9 +201,17 @@ def test_nicegui_shell_render_outputs_core_controls_and_dark_style() -> None:
     assert "Denoising mode" not in recording_ui.labels
     assert "Single image inspection" not in recording_ui.labels
     assert "Ready" in recording_ui.labels
-    assert {"Single", "Batch", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"} <= set(
-        recording_ui.buttons
-    )
+    assert {
+        "Single",
+        "Batch",
+        "HRSTEM",
+        "LRSTEM",
+        "HRSEM",
+        "LRSEM",
+        "HRTEM",
+        "LRTEM",
+        "Restore",
+    } <= set(recording_ui.buttons)
     assert "#010102" in recording_ui.head_html[0]
     assert "#5e6ad2" in recording_ui.head_html[0]
     assert ".denoiser-shell" in recording_ui.head_html[0]
@@ -534,7 +551,18 @@ def test_nicegui_shell_render_disables_single_controls_while_restoring(
     recording_ui = RecordingUi()
     render_nicegui_shell(ui_module=recording_ui, state=state, engine=object())
 
-    for button in ("Single", "Batch", "Open Image", "HRSTEM", "LRSTEM", "HRSEM", "LRSEM", "Restore"):
+    for button in (
+        "Single",
+        "Batch",
+        "Open Image",
+        "HRSTEM",
+        "LRSTEM",
+        "HRSEM",
+        "LRSEM",
+        "HRTEM",
+        "LRTEM",
+        "Restore",
+    ):
         assert "disable" in recording_ui.button_props[button]
     assert "denoiser-status-progress" in "\n".join(recording_ui.labels)
 

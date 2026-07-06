@@ -27,6 +27,13 @@ def test_output_path_uses_mode_folder_and_overwrite_name(tmp_path: Path) -> None
     assert output_path_for_input(source, DenoiseMode.HRSTEM) == expected
 
 
+def test_output_path_uses_tem_mode_folder(tmp_path: Path) -> None:
+    source = tmp_path / "case" / "wafer01.tif"
+    expected = tmp_path / "case" / "denoised_HRTEM" / "wafer01.tif"
+
+    assert output_path_for_input(source, DenoiseMode.HRTEM) == expected
+
+
 def test_converted_output_paths_preserve_original_suffix_to_avoid_collisions(
     tmp_path: Path,
 ) -> None:

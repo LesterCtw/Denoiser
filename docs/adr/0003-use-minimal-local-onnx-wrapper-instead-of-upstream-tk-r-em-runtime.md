@@ -9,7 +9,7 @@ Accepted
 Denoiser needs the required `tk_r_em` ONNX inference behavior, but the first
 release is a small Windows desktop app. The upstream `tk_r_em` project includes
 more than the Denoiser runtime needs, such as the Streamlit app, tutorials,
-sample datasets, and model families outside the first-release SEM/STEM scope.
+and sample datasets outside the first-release SEM/STEM/TEM scope.
 
 The app must package cleanly for Windows, run offline, and keep the runtime
 surface small.

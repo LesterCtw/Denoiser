@@ -4,7 +4,7 @@
 這份 README 是目前專案狀態的 source of truth。
 
 Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
-`tk_r_em` ONNX models 還原 grayscale SEM/STEM images。
+`tk_r_em` ONNX models 還原 grayscale SEM/STEM/TEM images。
 
 ## 目前設定
 
@@ -18,6 +18,8 @@ Denoiser 是一個簡單的 Windows desktop tool，讓 FA engineer 使用
   `assets/icons/denoiser_icon.icns` 是 macOS local native-window icon；使用深色圓角
   icon style，僅保留置中的產品首字母，不放底部 wordmark。
 - Windows build/package guide：`docs/windows-build-and-package.md`
+- End-user usage guide：`docs/user-guide.html`，面向只收到 packaged release folder 或
+  zip 的使用者，可直接用 browser 開啟。
 - Pre-commit hooks：Husky 會執行 lint-staged Prettier 和 `uv run pytest`。
 
 ## Local development launch
@@ -59,7 +61,7 @@ stacks。Windows release path 仍維持 PyInstaller。
 - `src/denoiser` package layout 的專案骨架。
 - NiceGUI native-window inspector frontend：啟動為 NiceGUI native window，
   顯示 Denoiser dark inspection shell、left control rail、right work area、Single/Batch
-  workflow switch、左側對齊的 `Denoiser` title、`Mode` label、直排四個
+  workflow switch、左側對齊的 `Denoiser` title、`Mode` label、直排六個
   denoising mode buttons、primary action area 和 pinned left status area；
   restore/batch processing 時，左下角 status text 和 animated progress bar
   會填滿左側欄位可用寬度。
@@ -90,7 +92,7 @@ stacks。Windows release path 仍維持 PyInstaller。
 - Runtime resource paths 已支援 source tree 和 PyInstaller frozen app；Windows
   onedir release 中的 bundled `assets`、`models`、`licenses` 會從 `_internal`
   讀取。
-- 四個必要 ONNX model files 已放在 `models/`。
+- 六個必要 ONNX model files 已放在 `models/`。
 - Third-party notices 和 upstream `tk_r_em` GPL license copy。
 - 支援 whole-image 和 patch-based inference 的最小 CPU ONNX inference wrapper。
 - 使用 bundled ONNX models 的 Single-image restore workflow。
@@ -101,7 +103,9 @@ stacks。Windows release path 仍維持 PyInstaller。
 - Batch mode status row rendering 已集中在 dedicated presentation module，讓 per-file
   status label、detail text、badge object names 的規則有單一維護位置。
 - Single preview encoding/rendering 已集中在 dedicated presentation module，讓 raw preview
-  與 before/after comparison 的 HTML contract 不再散落在 NiceGUI shell。
+  與 before/after comparison 的 HTML contract 不再散落在 NiceGUI shell；preview PNG
+  會用 robust 8-bit display window 避免 outlier 讓畫面接近全黑，raw/restored
+  comparison 會共用同一組 display range，讓亮度與對比差異不要被各自 normalize 掩蓋。
 - Native file/folder selection 和 ONNX session factory 已有明確 seam，test adapters
   可替換 NiceGUI/pywebview dialogs 與 ONNX Runtime session。
 - Batch cancellation between files、per-file failure isolation，以及 final
@@ -194,20 +198,21 @@ stacks。Windows release path 仍維持 PyInstaller。
 Denoiser 會使用最小本地 engine wrapper，實作必要的 `tk_r_em` inference behavior，
 而不是在 runtime 依賴完整 upstream package。
 
-第一版只包含四個必要 ONNX models：
+第一版包含 upstream `tk_r_em` 的六個必要 ONNX models：
 
 - `sfr_hrstem`
 - `sfr_lrstem`
 - `sfr_hrsem`
 - `sfr_lrsem`
+- `sfr_hrtem`
+- `sfr_lrtem`
 
-完整的 `tk_r_em` Streamlit app、tutorials、sample datasets、TEM models 不屬於
-runtime app。
+完整的 `tk_r_em` Streamlit app、tutorials 和 sample datasets 不屬於 runtime app。
 
 因為 `tk_r_em` 是 GPL-3.0-only，Denoiser 必須在 source 和 release package 中保留
 相關 license 與 attribution notices。
 
-四個必要 ONNX model files 會追蹤在此 repository，因此 developer clone repo 後可以
+六個必要 ONNX model files 會追蹤在此 repository，因此 developer clone repo 後可以
 不另外下載 model 也能建立 release。
 
 ## Windows build and packaging
@@ -303,8 +308,10 @@ Denoiser/
   models/
     sfr_hrsem.onnx
     sfr_hrstem.onnx
+    sfr_hrtem.onnx
     sfr_lrsem.onnx
     sfr_lrstem.onnx
+    sfr_lrtem.onnx
   scripts/
     build_windows.ps1
     check_dm3_pyinstaller_imports.py
@@ -320,6 +327,9 @@ Denoiser/
       0002-bundle-onnx-models-for-offline-cpu-runtime.md
       0003-use-minimal-local-onnx-wrapper-instead-of-upstream-tk-r-em-runtime.md
       0004-use-nicegui-native-window-for-desktop-ui.md
+    user-guide-assets/
+      user-guide-hero.png
+    user-guide.html
     windows-build-and-package.md
     windows-release-verification.md
   src/
@@ -357,7 +367,7 @@ Denoiser/
 
 ## Denoising modes
 
-第一版只包含 SEM 和 STEM modes。TEM 會刻意排除。
+第一版支援 SEM、STEM 和 TEM modes，對應 upstream `tk_r_em` 的六個 model tags。
 
 | UI label | tk_r_em model tag | Output folder     |
 | -------- | ----------------- | ----------------- |
@@ -365,8 +375,10 @@ Denoiser/
 | `LRSTEM` | `sfr_lrstem`      | `denoised_LRSTEM` |
 | `HRSEM`  | `sfr_hrsem`       | `denoised_HRSEM`  |
 | `LRSEM`  | `sfr_lrsem`       | `denoised_LRSEM`  |
+| `HRTEM`  | `sfr_hrtem`       | `denoised_HRTEM`  |
+| `LRTEM`  | `sfr_lrtem`       | `denoised_LRTEM`  |
 
-UI 會把這四個 modes 顯示為 buttons，而不是 dropdown。
+UI 會把這六個 modes 顯示為 buttons，而不是 dropdown。
 
 ## Workflow
 
@@ -496,6 +508,8 @@ Examples：
   `D:\caseA\denoised_HRSEM\wafer01.jpg.tif`
 - `D:\caseA\wafer01.dm3` with `HRSTEM` ->
   `D:\caseA\denoised_HRSTEM\wafer01.dm3.tif`
+- `D:\caseA\tem01.tif` with `HRTEM` ->
+  `D:\caseA\denoised_HRTEM\tem01.tif`
 
 Single mode 只會在目前 mode 對應的 output file 已存在時顯示 overwrite warning。
 

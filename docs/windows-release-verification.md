@@ -102,6 +102,8 @@ Pass criteria：
   - `_internal\models\sfr_lrstem.onnx`
   - `_internal\models\sfr_hrsem.onnx`
   - `_internal\models\sfr_lrsem.onnx`
+  - `_internal\models\sfr_hrtem.onnx`
+  - `_internal\models\sfr_lrtem.onnx`
 - Release folder 包含 license notices：
   - `_internal\licenses\THIRD_PARTY_NOTICES.md`
   - `_internal\licenses\tk_r_em_LICENSE.txt`
@@ -238,7 +240,7 @@ Pass criteria：
 - Diagnostic console build captured startup traceback, if needed: pass/fail/not run
 - App icon appears on `Denoiser.exe` and app window: pass/fail
 - Runtime dependencies included: pass/fail
-- Four ONNX models included: pass/fail
+- Six ONNX models included: pass/fail
 - License notices included: pass/fail
 - Launch without Python/uv/pip for end user: pass/fail
 - NiceGUI native window startup: pass/fail

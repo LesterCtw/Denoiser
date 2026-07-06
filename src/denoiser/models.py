@@ -16,6 +16,8 @@ class DenoiseMode(str, Enum):
     LRSTEM = "LRSTEM"
     HRSEM = "HRSEM"
     LRSEM = "LRSEM"
+    HRTEM = "HRTEM"
+    LRTEM = "LRTEM"
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,18 @@ BUNDLED_MODELS: tuple[BundledModel, ...] = (
         ui_label="LRSEM",
         model_tag="sfr_lrsem",
         output_folder="denoised_LRSEM",
+    ),
+    BundledModel(
+        mode=DenoiseMode.HRTEM,
+        ui_label="HRTEM",
+        model_tag="sfr_hrtem",
+        output_folder="denoised_HRTEM",
+    ),
+    BundledModel(
+        mode=DenoiseMode.LRTEM,
+        ui_label="LRTEM",
+        model_tag="sfr_lrtem",
+        output_folder="denoised_LRTEM",
     ),
 )
 

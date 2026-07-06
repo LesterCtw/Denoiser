@@ -21,6 +21,16 @@ from denoiser.models import (
 )
 
 
+MODEL_TAGS = (
+    "sfr_hrstem",
+    "sfr_lrstem",
+    "sfr_hrsem",
+    "sfr_lrsem",
+    "sfr_hrtem",
+    "sfr_lrtem",
+)
+
+
 def test_bundled_model_inventory_matches_mvs_modes() -> None:
     modes = supported_denoise_modes()
 
@@ -29,6 +39,8 @@ def test_bundled_model_inventory_matches_mvs_modes() -> None:
         DenoiseMode.LRSTEM,
         DenoiseMode.HRSEM,
         DenoiseMode.LRSEM,
+        DenoiseMode.HRTEM,
+        DenoiseMode.LRTEM,
     )
     assert default_denoise_mode() is DenoiseMode.HRSTEM
     assert [bundled_model.ui_label for bundled_model in BUNDLED_MODELS] == [
@@ -36,20 +48,27 @@ def test_bundled_model_inventory_matches_mvs_modes() -> None:
         "LRSTEM",
         "HRSEM",
         "LRSEM",
+        "HRTEM",
+        "LRTEM",
     ]
     assert [bundled_model.model_tag for bundled_model in BUNDLED_MODELS] == [
         "sfr_hrstem",
         "sfr_lrstem",
         "sfr_hrsem",
         "sfr_lrsem",
+        "sfr_hrtem",
+        "sfr_lrtem",
     ]
     assert [bundled_model.output_folder for bundled_model in BUNDLED_MODELS] == [
         "denoised_HRSTEM",
         "denoised_LRSTEM",
         "denoised_HRSEM",
         "denoised_LRSEM",
+        "denoised_HRTEM",
+        "denoised_LRTEM",
     ]
     assert bundled_model_for(DenoiseMode.LRSEM).model_tag == "sfr_lrsem"
+    assert bundled_model_for(DenoiseMode.HRTEM).model_tag == "sfr_hrtem"
 
 
 def test_missing_model_paths_reports_missing_required_models(tmp_path) -> None:
@@ -61,6 +80,8 @@ def test_missing_model_paths_reports_missing_required_models(tmp_path) -> None:
         "sfr_lrstem.onnx",
         "sfr_hrsem.onnx",
         "sfr_lrsem.onnx",
+        "sfr_hrtem.onnx",
+        "sfr_lrtem.onnx",
     }
 
 
@@ -95,12 +116,12 @@ def test_patch_inference_settings_defaults_match_mvs() -> None:
 
 
 def test_onnx_denoiser_restores_2d_pixels_with_selected_mode_model(tmp_path) -> None:
-    for tag in ("sfr_hrstem", "sfr_lrstem", "sfr_hrsem", "sfr_lrsem"):
+    for tag in MODEL_TAGS:
         (tmp_path / f"{tag}.onnx").write_bytes(b"model")
 
     class FakeSession:
         def __init__(self, model_path):
-            self.offset = 7 if model_path.name == "sfr_lrsem.onnx" else 0
+            self.offset = 7 if model_path.name == "sfr_lrtem.onnx" else 0
 
         def run(self, input_tensor):
             return input_tensor + self.offset
@@ -108,7 +129,7 @@ def test_onnx_denoiser_restores_2d_pixels_with_selected_mode_model(tmp_path) -> 
     denoiser = OnnxDenoiser(models_dir=tmp_path, session_factory=FakeSession)
     pixels = np.array([[1, 2], [3, 4]], dtype=np.float32)
 
-    restored = denoiser.restore(pixels, DenoiseMode.LRSEM)
+    restored = denoiser.restore(pixels, DenoiseMode.LRTEM)
 
     np.testing.assert_array_equal(restored, pixels + 7)
 
@@ -130,8 +151,21 @@ def test_onnx_denoiser_runs_bundled_model_on_synthetic_image() -> None:
     assert restored.dtype == np.float32
 
 
+@pytest.mark.parametrize("mode", [DenoiseMode.HRTEM, DenoiseMode.LRTEM])
+def test_onnx_denoiser_runs_bundled_tem_models_on_synthetic_image(
+    mode: DenoiseMode,
+) -> None:
+    denoiser = OnnxDenoiser()
+    pixels = np.zeros((16, 16), dtype=np.float32)
+
+    restored = denoiser.restore(pixels, mode)
+
+    assert restored.shape == pixels.shape
+    assert restored.dtype == np.float32
+
+
 def test_onnx_denoiser_pads_odd_sized_images_and_crops_output(tmp_path) -> None:
-    for tag in ("sfr_hrstem", "sfr_lrstem", "sfr_hrsem", "sfr_lrsem"):
+    for tag in MODEL_TAGS:
         (tmp_path / f"{tag}.onnx").write_bytes(b"model")
 
     class EvenOnlySession:
@@ -152,7 +186,7 @@ def test_onnx_denoiser_pads_odd_sized_images_and_crops_output(tmp_path) -> None:
 
 
 def test_onnx_denoiser_uses_deterministic_patch_based_restore_path(tmp_path) -> None:
-    for tag in ("sfr_hrstem", "sfr_lrstem", "sfr_hrsem", "sfr_lrsem"):
+    for tag in MODEL_TAGS:
         (tmp_path / f"{tag}.onnx").write_bytes(b"model")
 
     class PatchSession:
