@@ -3,7 +3,7 @@
 ## Project status
 
 Denoiser has a first Minimum Viable Solution (MVS) scope. It will be a simple
-Windows desktop app for FA engineers to restore 2D grayscale SEM/STEM images
+Windows desktop app for FA engineers to restore 2D grayscale SEM/STEM/TEM images
 using `tk_r_em` ONNX models.
 
 The repo now has a Python project skeleton, bundled ONNX models, third-party
@@ -18,10 +18,10 @@ UI before preview loading finishes.
 ## Glossary
 
 - **Denoiser**: The project and product name.
-- **FA engineer**: Failure analysis engineer using SEM/STEM images for
+- **FA engineer**: Failure analysis engineer using SEM/STEM/TEM images for
   inspection and analysis.
-- **HRSTEM / LRSTEM / HRSEM / LRSEM**: The four supported first-release
-  denoising modes.
+- **HRSTEM / LRSTEM / HRSEM / LRSEM / HRTEM / LRTEM**: The six supported
+  first-release denoising modes.
 - **MVS**: Minimum Viable Solution; the smallest useful first implementation.
 - **Batch restore run**: A single Batch mode execution over the selected folder.
   It should preserve per-file progress so the UI can show each restored,
@@ -46,7 +46,7 @@ UI before preview loading finishes.
 - First release targets Windows 10/11 laptops with CPU inference only.
 - The implemented frontend is NiceGUI native window with the standard Windows title bar,
   repo `DESIGN.md` as the visual source of truth, and no PySide6 fallback.
-- The app will commit and bundle four `tk_r_em` ONNX models and run offline.
+- The app will commit and bundle six `tk_r_em` ONNX models and run offline.
 - The app will use a minimal local engine wrapper instead of the full upstream
   `tk_r_em` package at runtime.
 - Development can use `uv`, but Windows release building must work with

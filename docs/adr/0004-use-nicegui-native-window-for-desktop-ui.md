@@ -9,9 +9,9 @@ Supersedes ADR 0001.
 ## Context
 
 Denoiser already has a first MVS for FA engineers restoring 2D grayscale
-SEM/STEM images with bundled `tk_r_em` ONNX models. The product remains a
-local Windows desktop tool with Single restore, Batch restore run, offline CPU
-inference, bundled model inventory, and English UI.
+SEM/STEM/TEM images with bundled `tk_r_em` ONNX models. The product remains
+a local Windows desktop tool with Single restore, Batch restore run, offline
+CPU inference, bundled model inventory, and English UI.
 
 ADR 0001 selected PySide6 for the first desktop UI. That produced a working
 functional desktop frontend, but the next frontend direction needs a more

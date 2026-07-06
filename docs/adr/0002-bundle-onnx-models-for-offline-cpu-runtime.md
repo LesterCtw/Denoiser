@@ -7,19 +7,21 @@ Accepted
 ## Context
 
 Denoiser must run offline on Windows 10/11 laptops. The first release supports
-four denoising modes:
+six denoising modes from upstream `tk_r_em`:
 
 - HRSTEM
 - LRSTEM
 - HRSEM
 - LRSEM
+- HRTEM
+- LRTEM
 
 Each mode maps to one required `tk_r_em` ONNX model file. End users should not
 need to download models separately or configure model paths.
 
 ## Decision
 
-Commit and bundle the four required ONNX model files in the repository and
+Commit and bundle the six required ONNX model files in the repository and
 release package. The runtime uses CPU inference only.
 
 ## Consequences
@@ -35,13 +37,11 @@ Trade-offs:
 
 - The repository and release package are larger.
 - Model updates become repository changes, not external downloads.
-- The first release is intentionally limited to the four SEM/STEM modes and
-  excludes TEM models.
+- The release package is larger than the earlier four-model SEM/STEM scope.
 
 ## Alternatives Considered
 
-- Download models at runtime: rejected because offline use is required.
+- Download models at runtime or on first launch: rejected because offline use
+  and deterministic release builds are required.
 - Ask users to choose model files manually: rejected because it adds setup risk
   for the MVS.
-- Include all upstream `tk_r_em` models: rejected because the first release only
-  needs four SEM/STEM modes.
