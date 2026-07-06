@@ -132,7 +132,8 @@ stacks。Windows release path 仍維持 PyInstaller。
   reader axes 提供可信的 nm/um X/Y pixel size，會用標準 TIFF `XResolution`、
   `YResolution`、`ResolutionUnit=CENTIMETER` 寫入 pixel calibration；若 calibration
   無法安全表示成 TIFF rational tags，會保守跳過 calibration tags 以避免 corrupt
-  output；其他 unsupported 或可能描述錯 output shape/channel 的 metadata 也會保守跳過，
+  output；若 DM axis scale 是負值，Denoiser 會把符號視為座標方向，並用絕對值保存
+  nm/pixel；其他 unsupported 或可能描述錯 output shape/channel 的 metadata 也會保守跳過，
   DM3/DM4 不承諾完整 metadata parity。
 - Windows build script 會明確包含 RosettaSciIO DM3/DM4 reader 的 lazy-loaded
   `rsciio.utils._distributed` module，以及 RosettaSciIO dependency 中可能不會被 app
@@ -255,6 +256,18 @@ Build script 會額外傳入 `--hidden-import rsciio.utils._distributed`、`--hi
 python .\scripts\check_dm3_pyinstaller_imports.py
 ```
 
+若要檢查一張 `.dm3` / `.dm4` 被 RosettaSciIO 讀到的 data shape、axes scale/units，
+以及 Denoiser 是否能推算出會寫入 TIFF 的 nm/px calibration tags：
+
+```bash
+uv run python scripts/inspect_dm3_metadata.py sample.dm3
+```
+
+輸出會列出每個 signal 的 `Data shape`、`Axes`、Denoiser 推算出的
+`x/y nm/px`，以及預期寫入的 `XResolution`、`YResolution`、
+`ResolutionUnit=CENTIMETER`。如果顯示 `would not be written`，代表目前 metadata
+形狀或數值仍無法安全轉成標準 TIFF calibration tags。
+
 若要檢查一張 TIFF 是否帶有可供 Gatan/DigitalMicrograph 量測的 standard TIFF
 calibration tags，或比較 ThermoFisher 可量測 TIFF 與 Denoiser output TIFF 的
 metadata 差異：
@@ -295,6 +308,7 @@ Denoiser/
   scripts/
     build_windows.ps1
     check_dm3_pyinstaller_imports.py
+    inspect_dm3_metadata.py
     inspect_tiff_metadata.py
   docs/
     agents/

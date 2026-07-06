@@ -608,14 +608,14 @@ def _axis_scale_nm_per_pixel(axis: dict[str, Any]) -> float | None:
     except (TypeError, ValueError):
         return None
 
-    if not math.isfinite(scale) or scale <= 0:
+    if not math.isfinite(scale) or scale == 0:
         return None
 
     unit_factor = LENGTH_UNITS_TO_NM.get(_normalise_length_unit(axis.get("units")))
     if unit_factor is None:
         return None
 
-    return scale * unit_factor
+    return abs(scale) * unit_factor
 
 
 def _normalise_length_unit(units: Any) -> str:

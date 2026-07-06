@@ -305,6 +305,45 @@ def test_dm_source_exports_nm_pixel_size_as_standard_resolution_tags(tmp_path: P
         assert tags["ResolutionUnit"].value == 3
 
 
+def test_dm_source_exports_negative_axis_scale_as_pixel_size_tags(tmp_path: Path) -> None:
+    image = ImageData(
+        source_path=tmp_path / "wafer.dm3",
+        pixels=np.array([[1, 2], [3, 4]], dtype=np.float32),
+        source_dtype=np.dtype(np.float32),
+        source_min=1.0,
+        source_max=4.0,
+        source_kind=SourceKind.DM,
+        metadata={
+            "axes": [
+                {
+                    "name": "y",
+                    "size": 2,
+                    "index_in_array": 0,
+                    "scale": -1.25,
+                    "units": "nm",
+                    "navigate": False,
+                },
+                {
+                    "name": "x",
+                    "size": 2,
+                    "index_in_array": 1,
+                    "scale": -0.5,
+                    "units": "nm",
+                    "navigate": False,
+                },
+            ],
+        },
+    )
+
+    output = save_restored_image(image, image.pixels, DenoiseMode.HRSTEM)
+
+    with tifffile.TiffFile(output) as tif:
+        tags = tif.pages[0].tags
+        assert tags["XResolution"].value == (20000000, 1)
+        assert tags["YResolution"].value == (8000000, 1)
+        assert tags["ResolutionUnit"].value == 3
+
+
 def test_dm_source_saves_readable_tiff_when_pixel_size_is_too_small_for_resolution_tags(
     tmp_path: Path,
 ) -> None:
